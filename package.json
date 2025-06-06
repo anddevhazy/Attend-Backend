@@ -1,0 +1,18 @@
+{
+  "name": "attend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon -r dotenv/config src/index.js"
+  },
+  "author": "Ayowole Sodipe",
+  "license": "ISC",
+  "description": "The Backend for Funaab's Attendance Taking App",
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
