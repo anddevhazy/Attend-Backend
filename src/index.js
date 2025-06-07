@@ -1,77 +1,44 @@
-// require('dotenv').config();
-// require('express-async-errors');
+// Here's the goal of index.js
 
-// // extra security packages
-// const helmet = require('helmet');
-// const cors = require('cors');
-// const xss = require('xss-clean');
-// const rateLimiter = require('express-rate-limit');
+// Loading environment variables
 
-// Swagger
-// const swaggerUI = require('swagger-ui-express');
-// const YAML = require('yamljs');
-// const swaggerDocument = YAML.load('./swagger.yaml');
+// Connecting to MongoDB
 
-// const express = require('express');
-// const app = express();
+// Starting the Express server upon successful DB connection
 
-const connectDB = require("./db/connect");
-// const authenticateUser = require('./middleware/authentication');
-// // // routers
-// // const authRouter = require('./routes/auth');
-// // const jobsRouter = require('./routes/jobs');
-// // error handler
-// const notFoundMiddleware = require('./middleware/not-found');
-// const errorHandlerMiddleware = require('./middleware/error-handler');
+import dotenv from "dotenv";
+import { app } from "./app.js";
 
-app.set("trust proxy", 1);
-app.use(
-  rateLimiter({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-  })
-);
-app.use(express.json());
-app.use(helmet());
-app.use(cors());
-app.use(xss());
+dotenv.config({ path: "./.env" });
 
-app.get("/", (req, res) => {
-  res.send('<h1>Jobs API</h1><a href="/api-docs">Documentation</a>');
-});
-app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(swaggerDocument));
+import connectDB from "./db/index.js";
 
-// routes
-// app.use('/api/v1/auth', authRouter);
-// app.use('/api/v1/jobs', authenticateUser, jobsRouter);
-
-app.use(notFoundMiddleware);
-app.use(errorHandlerMiddleware);
-
-const port = process.env.PORT || 5000;
-
-const start = async () => {
+const startServer = async () => {
   try {
-    await connectDB(process.env.MONGO_URI);
-    app.listen(port, () =>
-      console.log(`Server is listening on port ${port}...`)
-    );
-  } catch (error) {
-    console.log(error);
+    await connectDB();
+    // start server if DB connection succeds
+  } catch (err) {
+    console.log("❌ MONGO DB connection failed!!!", err);
   }
 };
 
-start();
+app.listen(PORT, () => {
+  console.log("⚙️ Server is running at port: ${PORT}");
+});
 
-// import express from "express";
+// const connectDB = require("./db/connect");
 
-// const app = express();
-// const port = 3000;
+// const port = process.env.PORT || 5000;
 
-// app.get("/", (req, res) => {
-//   res.send("Hello, Attend project!");
-// });
+// const start = async () => {
+//   try {
+//     await connectDB(process.env.MONGO_URI);
+//     app.listen(port, () =>
+//       console.log(`Server is listening on port ${port}...`)
+//     );
+//   } catch (error) {
+//     console.log(error);
+//   }
+// };
 
-// app.listen(port, () => {
-//   console.log(`Server is running at http://localhost:${port}`);
-// });
+// start();
