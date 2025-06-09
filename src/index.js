@@ -11,34 +11,20 @@ import { app } from "./app.js";
 
 dotenv.config({ path: "./.env" });
 
-import connectDB from "./db/index.js";
+import connectDB from "./db/connect.js";
+
+const PORT = process.env.PORT || 8000;
 
 const startServer = async () => {
   try {
     await connectDB();
-    // start server if DB connection succeds
+    app.listen(PORT, () => {
+      console.log(`⚙️ Server is running at port: ${PORT}`);
+    });
   } catch (err) {
     console.log("❌ MONGO DB connection failed!!!", err);
+    process.exit(1);
   }
 };
 
-app.listen(PORT, () => {
-  console.log("⚙️ Server is running at port: ${PORT}");
-});
-
-// const connectDB = require("./db/connect");
-
-// const port = process.env.PORT || 5000;
-
-// const start = async () => {
-//   try {
-//     await connectDB(process.env.MONGO_URI);
-//     app.listen(port, () =>
-//       console.log(`Server is listening on port ${port}...`)
-//     );
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
-
-// start();
+startServer();
