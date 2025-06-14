@@ -1,5 +1,4 @@
-// 1. what makes a class a class?
-// 2. what makes a marked attendance a marked attendance?
+
 
 // Student Sign Up
 // Student Login
