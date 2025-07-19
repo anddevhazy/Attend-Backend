@@ -37,9 +37,13 @@ const SessionsSchema = new mongoose.Schema({
       },
       timestamp: {
         type: Date,
-        default: Date.now
+        default: Date.now 
       },
       deviceIdUsed: {
+        type: String,
+        required: [true, 'Device ID used is required']
+      },
+      matricNumber:{
         type: String,
         required: [true, 'Device ID used is required']
       }
