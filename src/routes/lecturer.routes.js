@@ -13,19 +13,22 @@ const router = express.Router();
 // Route: POST /api/v1/lecturer/create-session
 router.post('/create-session', createSession);
 
-// Route: GET /api/v1/lecturer/live-attendance
-router.get('/live-attendance', getLiveAttendance);
+// Route: GET /api/v1/lecturer/:sessionId/live-attendance
+router.get('/:sessionId/live-attendance', getLiveAttendance);
 
 // Route: GET /api/v1/lecturer/comparison
-router.get('/comparison', getComparison);
+// router.get('/comparison', getComparison);
 
-// Route: GET /api/v1/student/override-requests
-router.get('/override-requests', getOverrideRequests);
+// Route: GET /api/v1/lecturer/:sessionId/comparison
+router.get('/:sessionId/comparison', getComparison);
 
-// Route: PATCH /api/v1/lecturer/approve-override
-router.patch('/approve-override', approveOverride);
+// Route: GET /api/v1/student/:sessionId/override-requests
+router.get('/:sessionId/override-requests', getOverrideRequests);
 
-// Route: PATCH /api/v1/lecturer/deny-override
-router.patch('/deny-override', denyOverride);
+// Route: PATCH /api/v1/lecturer/:sessionId/approve-override
+router.patch('/:sessionId/approve-override', approveOverride);
+
+// Route: PATCH /api/v1/lecturer/:sessionId/deny-override
+router.patch('/:sessionId/deny-override', denyOverride);
 
 export default router;

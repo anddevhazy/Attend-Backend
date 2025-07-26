@@ -12,5 +12,14 @@
       { "latitude": 7.1111, "longitude": 3.4444 },
       { "latitude": 7.1112, "longitude": 3.4445 }
     ]
+  },
+  {
+    "name": "SITTING ROOM",
+    "corners": [
+      { "latitude": 6.662634, "longitude": 3.171158 },
+      { "latitude": 6.662631, "longitude": 3.171201 },
+      { "latitude": 6.662658, "longitude": 3.171177 },
+      { "latitude": 6.662697, "longitude": 3.171117 }
+    ]
   }
 ]

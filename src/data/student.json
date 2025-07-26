@@ -14,5 +14,37 @@
       "missed": [],
       "pending": []
     }
+  },
+  {
+    "name": "Kamoru Usman",
+    "role": "student",
+    "email": "kamoru.doe@example.com",
+    "matricNumber": "20201772",
+    "level": "400L",
+    "password": "hashedpassword123",
+    "deviceId": "1235",
+    "selfie": "blahblah",
+    "selectedCourses": ["68836960a49afef59232762a", "68836960a49afef59232762b"],
+    "attendanceSummary": {
+      "present": [],
+      "missed": [],
+      "pending": []
+    }
+  },
+  {
+    "name": "Israel Adesanya",
+    "role": "student",
+    "email": "Israel.doe@example.com",
+    "matricNumber": "20201773",
+    "level": "400L",
+    "password": "hashedpassword123",
+    "deviceId": "1236",
+    "selfie": "blahblah",
+    "selectedCourses": ["68836960a49afef59232762a", "68836960a49afef59232762b"],
+    "attendanceSummary": {
+      "present": [],
+      "missed": [],
+      "pending": []
+    }
   }
 ]

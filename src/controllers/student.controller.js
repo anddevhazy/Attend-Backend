@@ -2,6 +2,8 @@ import Sessions from '../models/attendanceSession.model.js';
 import User from '../models/user.model.js';
 import OverrideRequest from '../models/overrideRequest.model.js';
 import Course from '../models/course.model.js';
+// eslint-disable-next-line no-unused-vars
+import Location from '../models/location.model.js';
 
 export const getDashboard = async (req, res) => {
   try {
@@ -16,6 +18,7 @@ export const getDashboard = async (req, res) => {
     const activeSession = await Sessions.find({
       ...courseFilter,
       status: 'active',
+      // startTime: { $lte: new Date() },
       endTime: { $gt: new Date() },
     })
       .populate('courseId', 'name')
@@ -122,7 +125,17 @@ export const markAttendance = async (req, res) => {
       });
     }
 
+    const user = await User.findOne({ matricNumber });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found with this matric number',
+      });
+    }
+
     session.attendees.push({
+      studentId: user._id,
       matricNumber,
       selfie,
       deviceIdUsed: deviceId,
@@ -201,13 +214,13 @@ async function handleDeviceValidation(matricNumber, deviceId) {
 
 export const requestOverride = async (req, res) => {
   try {
-    const { sessionId, selfie, deviceId, matricNumber, name } = req.body;
+    const { sessionId, selfie, deviceId, matricNumber } = req.body;
 
-    if (!sessionId || !selfie || !deviceId || !matricNumber || !name) {
+    if (!sessionId || !selfie || !deviceId || !matricNumber) {
       return res.status(400).json({
         success: false,
         message:
-          'Missing required fields: sessionId, selfie, deviceId, matricNumber, name',
+          'Missing required fields: sessionId, selfie, deviceId, matricNumber, ',
       });
     }
 
@@ -240,11 +253,19 @@ export const requestOverride = async (req, res) => {
         message: 'Override request already submitted for this session',
       });
     }
+    const user = await User.findOne({ matricNumber });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found with this matric number',
+      });
+    }
 
     const overrideRequest = new OverrideRequest({
+      studentId: user._id,
       sessionId,
       matricNumber,
-      name,
       selfie,
       originalOwnerMatric: originalOwner.conflictInfo.matricNumber,
       originalOwnerSelfie: originalOwner.conflictInfo.selfie,
