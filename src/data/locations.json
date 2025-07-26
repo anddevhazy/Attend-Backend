@@ -1,0 +1,16 @@
+[
+  {
+    "name": "COLENG LT1",
+    "corners": [
+      { "latitude": 7.1234, "longitude": 3.4567 },
+      { "latitude": 7.1235, "longitude": 3.4568 }
+    ]
+  },
+  {
+    "name": "COLANIM Block C",
+    "corners": [
+      { "latitude": 7.1111, "longitude": 3.4444 },
+      { "latitude": 7.1112, "longitude": 3.4445 }
+    ]
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "John Doe",
+    "role": "student",
+    "email": "john.doe@example.com",
+    "matricNumber": "20201771",
+    "level": "400L",
+    "password": "hashedpassword123",
+    "deviceId": "1234",
+    "selfie": "blahblah",
+    "selectedCourses": ["68836960a49afef59232762a", "68836960a49afef59232762b"],
+    "attendanceSummary": {
+      "present": [],
+      "missed": [],
+      "pending": []
+    }
+  }
+]

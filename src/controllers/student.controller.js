@@ -312,3 +312,47 @@ export const selectCourses = async (req, res) => {
     });
   }
 };
+
+export const enrollInCourses = async (req, res) => {
+  try {
+    const { studentId, courseIds } = req.body;
+
+    if (!studentId || !Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'studentId and courseIds array are required',
+      });
+    }
+
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    student.selectedCourses = courseIds;
+    await student.save();
+
+    await Course.updateMany(
+      { _id: { $in: courseIds } },
+      { $addToSet: { students: student._id } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Courses successfully selected',
+      data: {
+        selectedCourses: student.selectedCourses,
+      },
+    });
+  } catch (error) {
+    console.error('Enroll in courses error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error enrolling in courses',
+      error: error.message,
+    });
+  }
+};

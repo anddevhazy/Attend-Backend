@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon -r dotenv/config src/index.js",
+    "seed": "node -r dotenv/config seed.js",
     "lint": "eslint ."
   },
   "author": "Ayowole Sodipe",
