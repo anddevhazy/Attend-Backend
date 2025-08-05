@@ -9,7 +9,7 @@ const OverrideRequestSchema = new mongoose.Schema(
     },
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'AttendanceSession',
+      ref: 'Session',
       required: [true, 'Session ID is required'],
     },
     selfie: {

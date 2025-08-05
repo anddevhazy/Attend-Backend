@@ -25,10 +25,10 @@ router.get('/:sessionId/comparison', getComparison);
 // Route: GET /api/v1/student/:sessionId/override-requests
 router.get('/:sessionId/override-requests', getOverrideRequests);
 
-// Route: PATCH /api/v1/lecturer/:sessionId/approve-override
-router.patch('/:sessionId/approve-override', approveOverride);
+// Route: PATCH /api/v1/lecturer/:overrideRequestId/approve-override
+router.patch('/:overrideRequestId/approve-override', approveOverride);
 
-// Route: PATCH /api/v1/lecturer/:sessionId/deny-override
-router.patch('/:sessionId/deny-override', denyOverride);
+// Route: PATCH /api/v1/lecturer/:overrideRequestId/deny-override
+router.patch('/:overrideRequestId/deny-override', denyOverride);
 
 export default router;
