@@ -1,6 +1,7 @@
 import Session from '../models/attendanceSession.model.js';
-import User from '../models/user.model.js';
 import OverrideRequest from '../models/overrideRequest.model.js';
+import { StatusCodes } from 'http-status-codes';
+import { BadRequestError, NotFoundError } from '../errors/index.js';
 
 export const createSession = async (req, res) => {
   try {
@@ -150,71 +151,69 @@ export const getOverrideRequests = async (req, res) => {
 // };
 
 export const approveOverride = async (req, res) => {
-  try {
-    const { overrideRequestId } = req.params;
-    const { lecturerId } = req.body;
+  const { overrideRequestId } = req.params;
+  const { lecturerId } = req.body;
 
-    const overrideRequest = await OverrideRequest.findById(overrideRequestId)
-      .populate('studentId')
-      .populate('sessionId');
-
-    if (!overrideRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Override request not found',
-      });
-    }
-
-    if (overrideRequest.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Override request has already been ${overrideRequest.status}`,
-      });
-    }
-
-    overrideRequest.status = 'approved';
-    overrideRequest.lecturerId = lecturerId;
-    overrideRequest.decisionTimestamp = new Date();
-    await overrideRequest.save();
-
-    const session = await Session.findById(overrideRequest.sessionId);
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found',
-      });
-    }
-
-    const student = await User.findById(overrideRequest.studentId);
-
-    session.attendees.push({
-      studentId: overrideRequest.studentId._id,
-      selfie: overrideRequest.selfie,
-      timestamp: overrideRequest.createdAt,
-      deviceIdUsed: student.deviceId || 'override-approved',
-      matricNumber: student.matricNumber,
-    });
-
-    await session.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Override request approved successfully',
-      data: {
-        overrideRequest,
-        sessionId: overrideRequest.sessionId,
-        studentAdded: true,
-      },
-    });
-  } catch (error) {
-    console.error('Error approving override request:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
+  if (!overrideRequestId || !lecturerId) {
+    throw new BadRequestError('Missing required fields');
   }
+
+  const overrideRequest = await OverrideRequest.findById(overrideRequestId)
+    .populate('studentId', 'name matricNumber deviceId')
+    .populate('sessionId', '_id attendees');
+
+  if (!overrideRequest) {
+    throw new NotFoundError('Override request not found');
+  }
+
+  if (overrideRequest.status !== 'pending') {
+    throw new BadRequestError(
+      `Override request has already been ${overrideRequest.status}`
+    );
+  }
+
+  const session = overrideRequest.sessionId;
+  const student = overrideRequest.studentId;
+
+  if (!session || !student) {
+    throw new NotFoundError('Related session or student not found');
+  }
+
+  // Approve the override
+  overrideRequest.status = 'approved';
+  overrideRequest.lecturerId = lecturerId;
+  overrideRequest.decisionTimestamp = new Date();
+  await overrideRequest.save();
+
+  // Add student to session attendees
+  session.attendees.push({
+    studentId: student._id,
+    selfie: overrideRequest.selfie,
+    timestamp: overrideRequest.createdAt,
+    deviceIdUsed: student.deviceId || 'override-approved',
+    matricNumber: student.matricNumber,
+  });
+
+  await session.save();
+
+  return res.status(StatusCodes.OK).json({
+    success: true,
+    message: 'Override request approved successfully',
+    data: {
+      overrideRequest: {
+        _id: overrideRequest._id,
+        status: overrideRequest.status,
+        decisionTimestamp: overrideRequest.decisionTimestamp,
+      },
+      student: {
+        _id: student._id,
+        name: student.name,
+        matricNumber: student.matricNumber,
+      },
+      sessionId: session._id,
+      studentAdded: true,
+    },
+  });
 };
 
 export const denyOverride = async (req, res) => {
