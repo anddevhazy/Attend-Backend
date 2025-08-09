@@ -179,13 +179,10 @@ export const approveOverride = async (req, res) => {
     throw new NotFoundError('Related session or student not found');
   }
 
-  // Approve the override
   overrideRequest.status = 'approved';
-  overrideRequest.lecturerId = lecturerId;
   overrideRequest.decisionTimestamp = new Date();
   await overrideRequest.save();
 
-  // Add student to session attendees
   session.attendees.push({
     studentId: student._id,
     selfie: overrideRequest.selfie,
