@@ -1,17 +1,27 @@
-import Session from '../models/attendanceSession.model.js';
-import OverrideRequest from '../models/overrideRequest.model.js';
 import { StatusCodes } from 'http-status-codes';
-import { BadRequestError, NotFoundError } from '../errors/index.js';
+import Session from '../models/attendanceSession.model.js';
+// eslint-disable-next-line no-unused-vars
+import User from '../models/user.model.js';
+import OverrideRequest from '../models/overrideRequest.model.js';
+import {
+  BadRequestError,
+  NotFoundError,
+  // eslint-disable-next-line no-unused-vars
+  InternalServerError,
+} from '../errors/index.js'; // Import from errors/index.js for convenience
+import formatResponse from '../utils/formatResponse.js';
+import validateRequiredFields from '../utils/validateRequiredFields.js';
 
-export const createSession = async (req, res) => {
+export const createSession = async (req, res, next) => {
   try {
     const { courseId, lecturerId, locationId, startTime, endTime } = req.body;
 
-    if (!courseId || !lecturerId || !locationId || !startTime || !endTime) {
-      return res.status(400).json({ message: 'All fields are required.' });
-    }
+    validateRequiredFields(
+      ['courseId', 'lecturerId', 'locationId', 'startTime', 'endTime'],
+      req.body
+    );
 
-    const newSession = new Session({
+    const session = await Session.create({
       courseId,
       lecturerId,
       locationId,
@@ -19,237 +29,225 @@ export const createSession = async (req, res) => {
       endTime,
     });
 
-    const savedSession = await newSession.save();
-
-    res.status(201).json(savedSession);
+    return formatResponse(
+      res,
+      StatusCodes.CREATED,
+      {
+        id: session._id,
+        courseId: session.courseId,
+        lecturerId: session.lecturerId,
+        locationId: session.locationId,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        status: session.status,
+        createdAt: session.createdAt,
+      },
+      'Session created successfully'
+    );
   } catch (error) {
-    console.error('Error creating session:', error);
-    res
-      .status(500)
-      .json({ message: 'Server error. Could not create session.' });
+    next(error);
   }
 };
 
-// export const getLiveAttendance = async (req, res) => {
-//   // the lecturer clicks on his live session to view the attendees
-//   // so the input is supposed to be the session id and the output is
-//   // supposed to be a stream of the attendees showing their matric number
-//   // their name, level
-// };
-
-export const getLiveAttendance = async (req, res) => {
+export const getLiveAttendance = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
 
     if (!sessionId) {
-      return res.status(400).json({ error: 'Session ID is required' });
+      throw new BadRequestError('Session ID is required');
     }
 
-    const session = await Session.findById(sessionId).populate({
-      path: 'attendees.studentId',
-      select: 'name level',
-    });
+    const session = await Session.findById(sessionId)
+      .select('attendees status')
+      .populate({
+        path: 'attendees.studentId',
+        select: 'name level matricNumber',
+      })
+      .lean();
 
     if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
+      throw new NotFoundError('Session not found');
     }
 
     if (session.status !== 'active') {
-      return res.status(400).json({ error: 'Session is not active' });
+      throw new BadRequestError('Session is not active');
     }
 
-    const attendeesInfo = session.attendees.map((att) => ({
+    const attendees = session.attendees.map((att) => ({
       matricNumber: att.matricNumber,
       name: att.studentId.name,
       level: att.studentId.level,
       timestamp: att.timestamp,
     }));
 
-    return res.status(200).json({ attendees: attendeesInfo });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Server error' });
+    return formatResponse(res, StatusCodes.OK, { attendees });
+  } catch (error) {
+    next(error);
   }
 };
 
-// export const getComparison = async (req, res) => {
-//   // so here this is supposed to be a stream of the number of people that I've marked slash the number of
-//   // people registered for the course, so I suppose the input is the sessionId.
-// };
-
-export const getComparison = async (req, res) => {
+export const getComparison = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
+
     if (!sessionId) {
-      return res.status(400).json({ message: 'sessionId is required' });
+      throw new BadRequestError('Session ID is required');
     }
 
-    const session = await Session.findById(sessionId).populate('courseId');
+    const session = await Session.findById(sessionId)
+      .select('attendees courseId')
+      .populate({
+        path: 'courseId',
+        select: 'name students',
+      })
+      .lean();
+
     if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
+      throw new NotFoundError('Session not found');
     }
 
-    const course = session.courseId;
-    if (!course) {
-      return res.status(404).json({ message: 'Course not found' });
+    if (!session.courseId) {
+      throw new NotFoundError('Course not found');
     }
 
+    const { courseId: course } = session;
     const totalRegistered = course.students.length;
-
     const totalMarked = session.attendees.length;
 
-    return res.status(200).json({
+    return formatResponse(res, StatusCodes.OK, {
       courseName: course.name,
       totalRegistered,
       totalMarked,
-      message: `${totalMarked}/${totalRegistered} students have been marked for this session`,
+      markedRatio: `${totalMarked}/${totalRegistered}`,
     });
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ message: 'Server Error', error: error.message });
+    next(error);
   }
 };
 
-// export const getOverrideRequests = async (req, res) => {
-//     // so, this is supposed to be a stream of override requests
-//     // I expect the input to be session Id
-//     // and the output to be a stream of override requests
-// };
-
-export const getOverrideRequests = async (req, res) => {
-  const { sessionId } = req.params;
-
-  if (!sessionId) {
-    return res.status(400).json({ message: 'Session ID is required' });
-  }
-
+export const getOverrideRequests = async (req, res, next) => {
   try {
-    const overrideRequests = await OverrideRequest.find({ sessionId })
-      .populate('studentId', 'name matricNumber')
-      .populate('lecturerId', 'name');
+    const { sessionId } = req.params;
 
-    if (!overrideRequests.length) {
-      return res
-        .status(404)
-        .json({ message: 'No override requests found for this session' });
+    if (!sessionId) {
+      throw new BadRequestError('Session ID is required');
     }
 
-    return res.status(200).json({ overrideRequests });
+    const overrideRequests = await OverrideRequest.find({ sessionId })
+      .select('studentId lecturerId status createdAt decisionTimestamp')
+      .populate('studentId', 'name matricNumber')
+      .populate('lecturerId', 'name')
+      .lean();
+
+    if (!overrideRequests.length) {
+      throw new NotFoundError('No override requests found for this session');
+    }
+
+    return formatResponse(res, StatusCodes.OK, { overrideRequests });
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ message: 'Server Error', error: error.message });
+    next(error);
   }
 };
 
-// export const approveOverride = async (req, res) => {
-//   // when the lecturer approves it the status of that request changes to approved and
-//   // the student gets added to the attendees list of that session
-// };
-
-export const approveOverride = async (req, res) => {
-  const { overrideRequestId } = req.params;
-  const { lecturerId } = req.body;
-
-  if (!overrideRequestId || !lecturerId) {
-    throw new BadRequestError('Missing required fields');
-  }
-
-  const overrideRequest = await OverrideRequest.findById(overrideRequestId)
-    .populate('studentId', 'name matricNumber deviceId')
-    .populate('sessionId', '_id attendees');
-
-  if (!overrideRequest) {
-    throw new NotFoundError('Override request not found');
-  }
-
-  if (overrideRequest.status !== 'pending') {
-    throw new BadRequestError(
-      `Override request has already been ${overrideRequest.status}`
-    );
-  }
-
-  const session = overrideRequest.sessionId;
-  const student = overrideRequest.studentId;
-
-  if (!session || !student) {
-    throw new NotFoundError('Related session or student not found');
-  }
-
-  overrideRequest.status = 'approved';
-  overrideRequest.decisionTimestamp = new Date();
-  await overrideRequest.save();
-
-  session.attendees.push({
-    studentId: student._id,
-    selfie: overrideRequest.selfie,
-    timestamp: overrideRequest.createdAt,
-    deviceIdUsed: student.deviceId || 'override-approved',
-    matricNumber: student.matricNumber,
-  });
-
-  await session.save();
-
-  return res.status(StatusCodes.OK).json({
-    success: true,
-    message: 'Override request approved successfully',
-    data: {
-      overrideRequest: {
-        _id: overrideRequest._id,
-        status: overrideRequest.status,
-        decisionTimestamp: overrideRequest.decisionTimestamp,
-      },
-      student: {
-        _id: student._id,
-        name: student.name,
-        matricNumber: student.matricNumber,
-      },
-      sessionId: session._id,
-      studentAdded: true,
-    },
-  });
-};
-
-export const denyOverride = async (req, res) => {
+export const approveOverride = async (req, res, next) => {
   try {
     const { overrideRequestId } = req.params;
     const { lecturerId } = req.body;
 
-    const overrideRequest = await OverrideRequest.findById(overrideRequestId);
+    validateRequiredFields(['lecturerId'], req.body);
+
+    const overrideRequest = await OverrideRequest.findById(overrideRequestId)
+      .populate('studentId', 'matricNumber deviceId')
+      .populate('sessionId')
+      .exec();
 
     if (!overrideRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Override request not found',
-      });
+      throw new NotFoundError('Override request not found');
     }
 
     if (overrideRequest.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Override request has already been ${overrideRequest.status}`,
-      });
+      throw new BadRequestError(
+        `Override request has already been ${overrideRequest.status}`
+      );
+    }
+
+    const session = overrideRequest.sessionId;
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    overrideRequest.status = 'approved';
+    overrideRequest.lecturerId = lecturerId;
+    overrideRequest.decisionTimestamp = new Date();
+
+    session.attendees.push({
+      studentId: overrideRequest.studentId._id,
+      selfie: overrideRequest.selfie,
+      timestamp: overrideRequest.createdAt,
+      deviceIdUsed: overrideRequest.studentId.deviceId || 'override-approved',
+      matricNumber: overrideRequest.studentId.matricNumber,
+    });
+
+    await Promise.all([overrideRequest.save(), session.save()]);
+
+    return formatResponse(
+      res,
+      StatusCodes.OK,
+      {
+        overrideRequest: {
+          id: overrideRequest._id,
+          status: overrideRequest.status,
+          studentId: overrideRequest.studentId._id,
+          sessionId: overrideRequest.sessionId,
+          decisionTimestamp: overrideRequest.decisionTimestamp,
+        },
+        sessionId: session._id,
+      },
+      'Override request approved successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const denyOverride = async (req, res, next) => {
+  try {
+    const { overrideRequestId } = req.params;
+    const { lecturerId } = req.body;
+
+    validateRequiredFields(['lecturerId'], req.body);
+
+    const overrideRequest = await OverrideRequest.findById(overrideRequestId);
+
+    if (!overrideRequest) {
+      throw new NotFoundError('Override request not found');
+    }
+
+    if (overrideRequest.status !== 'pending') {
+      throw new BadRequestError(
+        `Override request has already been ${overrideRequest.status}`
+      );
     }
 
     overrideRequest.status = 'denied';
     overrideRequest.lecturerId = lecturerId;
     overrideRequest.decisionTimestamp = new Date();
+
     await overrideRequest.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Override request denied',
-      data: overrideRequest,
-    });
+    return formatResponse(
+      res,
+      StatusCodes.OK,
+      {
+        overrideRequest: {
+          id: overrideRequest._id,
+          status: overrideRequest.status,
+          decisionTimestamp: overrideRequest.decisionTimestamp,
+        },
+      },
+      'Override request denied successfully'
+    );
   } catch (error) {
-    console.error('Error denying override request:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
+    next(error);
   }
 };

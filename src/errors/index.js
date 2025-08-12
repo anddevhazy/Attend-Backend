@@ -1,7 +1,4 @@
-// errors/index.js
-import CustomAPIError from './custom-api.js';
-import BadRequestError from './bad-request.js';
-import NotFoundError from './not-found.js';
-import UnauthenticatedError from './unauthenticated.js';
-
-export { CustomAPIError, BadRequestError, NotFoundError, UnauthenticatedError };
+export { default as CustomApiError } from './CustomApiError.js';
+export { default as BadRequestError } from './BadRequestError.js';
+export { default as NotFoundError } from './NotFoundError.js';
+export { default as InternalServerError } from './InternalServerError.js';
