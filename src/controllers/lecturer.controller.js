@@ -184,7 +184,7 @@ export const approveOverride = async (req, res, next) => {
       studentId: overrideRequest.studentId._id,
       selfie: overrideRequest.selfie,
       timestamp: overrideRequest.createdAt,
-      deviceIdUsed: overrideRequest.studentId.deviceId || 'override-approved',
+      deviceIdUsed: overrideRequest.studentId.deviceId,
       matricNumber: overrideRequest.studentId.matricNumber,
     });
 
