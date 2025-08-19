@@ -37,6 +37,14 @@ const UserSchema = new mongoose.Schema(
         message: 'Level must be one of 100L, 200L, 300L, 400L, 500L, or 600L',
       },
     },
+    department: {
+      type: String,
+      trim: true,
+    },
+    faculty: {
+      type: String,
+      trim: true,
+    },
     password: {
       type: String,
       required: [true, 'Password is required'],
