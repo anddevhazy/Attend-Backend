@@ -1,3 +1,7 @@
+// I should use asyncHandler util in my next project
+
+// That big chunk of try { ... } catch (error) { next(error) } is exactly what asyncHandler saves you from writing over and over in each controller.
+
 import { StatusCodes } from 'http-status-codes';
 import {
   BadRequestError,
