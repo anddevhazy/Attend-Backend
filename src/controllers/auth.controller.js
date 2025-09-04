@@ -1,4 +1,3 @@
-// controllers/auth.controller.js
 import { StatusCodes } from 'http-status-codes';
 import {
   BadRequestError,
@@ -7,50 +6,19 @@ import {
 } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
+import extractStudentDataFromImage from '../utils/extractStudentDataFromImage.js';
+import generateToken from '../utils/generateToken.js';
+
 import User from '../models/user.model.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
-// Placeholder for OCR service (to be implemented based on chosen OCR library)
-// eslint-disable-next-line no-unused-vars
-const extractStudentDataFromImage = async (image) => {
-  // Hypothetical OCR processing (e.g., using Tesseract.js or Google Vision API)
-  // Returns { matricNumber, name, programme, level }
-  try {
-    // Example: await ocrService.processImage(image);
-    return {
-      matricNumber: 'ABC12345',
-      name: 'John Doe',
-      programme: 'Computer Science',
-      level: '200L',
-    };
-    // eslint-disable-next-line no-unused-vars, no-unreachable
-  } catch (error) {
-    throw new InternalServerError(
-      'Failed to process image for data extraction'
-    );
-  }
-};
-
-// Generate JWT token
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user._id, role: user.role, email: user.email },
-    process.env.JWT_SECRET || 'your_jwt_secret',
-    { expiresIn: '7d' }
-  );
-};
-
-// Send email verification (placeholder for email service)
 const sendVerificationEmail = async (user, token) => {
-  // Hypothetical email service (e.g., using Nodemailer or AWS SES)
-  // Example: await emailService.sendEmail(user.email, 'Verify Email', link);
   try {
     const verificationLink = `${process.env.APP_URL}/verify-email?token=${token}`;
     console.log(
       `Sending verification email to ${user.email}: ${verificationLink}`
     );
-    // Implement actual email sending logic here
     return true;
     // eslint-disable-next-line no-unused-vars
   } catch (error) {
@@ -60,8 +28,7 @@ const sendVerificationEmail = async (user, token) => {
 
 export const studentExtractData = async (req, res, next) => {
   try {
-    const { image } = req.body; // Assuming image is sent as base64 or URL
-
+    const { image } = req.body;
     if (!image) {
       throw new BadRequestError('Image is required for data extraction');
     }
@@ -167,8 +134,6 @@ export const login = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    // Since JWT is stateless, logout is typically handled client-side by removing the token
-    // Server can optionally invalidate token by maintaining a blacklist (not implemented here)
     return formatResponse(res, StatusCodes.OK, {}, 'Logout successful');
   } catch (error) {
     next(error);
