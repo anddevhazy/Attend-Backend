@@ -180,7 +180,7 @@ export const verifyEmail = async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
       // eslint-disable-next-line no-unused-vars
     } catch (error) {
       throw new BadRequestError('Invalid or expired verification token');

@@ -16,9 +16,9 @@ const sendVerificationEmail = async (user, token) => {
 
     // 2. I define the email content
     const mailOptions = {
-      from: `"Attendance System" <${process.env.EMAIL_USER}>`,
+      from: `"ATTEND" <${process.env.EMAIL_USER}>`,
       to: user.email,
-      subject: 'Verify your email',
+      subject: 'Verify your email for ATTEND',
       html: `
         <h1>Email Verification</h1>
         <p>Hello ${user.name},</p>
