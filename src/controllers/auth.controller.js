@@ -1,30 +1,13 @@
 import { StatusCodes } from 'http-status-codes';
-import {
-  BadRequestError,
-  NotFoundError,
-  InternalServerError,
-} from '../errors/index.js';
+import { BadRequestError, NotFoundError } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
 import extractStudentDataFromImage from '../utils/extractStudentDataFromImage.js';
 import generateToken from '../utils/generateToken.js';
-
+import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import User from '../models/user.model.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const sendVerificationEmail = async (user, token) => {
-  try {
-    const verificationLink = `${process.env.APP_URL}/verify-email?token=${token}`;
-    console.log(
-      `Sending verification email to ${user.email}: ${verificationLink}`
-    );
-    return true;
-    // eslint-disable-next-line no-unused-vars
-  } catch (error) {
-    throw new InternalServerError('Failed to send verification email');
-  }
-};
 
 export const studentExtractData = async (req, res, next) => {
   try {
