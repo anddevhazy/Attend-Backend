@@ -18,7 +18,7 @@ const UserSchema = new mongoose.Schema(
     email: {
       type: String,
       unique: true,
-      sparse: true,
+      required: true,
       lowercase: true,
       trim: true,
       match: [/.+@.+\..+/, 'Invalid email format'],
@@ -26,7 +26,7 @@ const UserSchema = new mongoose.Schema(
     matricNumber: {
       type: String,
       unique: true,
-      sparse: true,
+      required: true,
       uppercase: true,
       trim: true,
     },
@@ -77,5 +77,8 @@ const UserSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ matricNumber: 1 }, { unique: true });
 
 export default mongoose.model('User', UserSchema);

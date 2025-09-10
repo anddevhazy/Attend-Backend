@@ -6,29 +6,26 @@ import {
   getOverrideRequests,
   approveOverride,
   denyOverride,
-} from '../controllers/lecturer.controller.js';
+} from '../controllers/lecturerController.js';
+import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Route: POST /api/v1/lecturer/create-session
-router.post('/create-session', createSession);
+// Middleware to ensure user is a lecturer
+const ensureLecturer = (req, res, next) => {
+  if (req.user.role !== 'lecturer') {
+    return res.status(403).json({ message: 'Access denied: Lecturers only' });
+  }
+  next();
+};
 
-// Route: GET /api/v1/lecturer/:sessionId/live-attendance
-router.get('/:sessionId/live-attendance', getLiveAttendance);
-
-// Route: GET /api/v1/lecturer/comparison
-// router.get('/comparison', getComparison);
-
-// Route: GET /api/v1/lecturer/:sessionId/comparison
-router.get('/:sessionId/comparison', getComparison);
-
-// Route: GET /api/v1/student/:sessionId/override-requests
-router.get('/:sessionId/override-requests', getOverrideRequests);
-
-// Route: PATCH /api/v1/lecturer/:overrideRequestId/approve-override
-router.patch('/:overrideRequestId/approve-override', approveOverride);
-
-// Route: PATCH /api/v1/lecturer/:overrideRequestId/deny-override
-router.patch('/:overrideRequestId/deny-override', denyOverride);
+// Routes
+router.use(authenticateToken, ensureLecturer);
+router.post('/sessions', createSession);
+router.get('/sessions/:sessionId/attendance', getLiveAttendance);
+router.get('/sessions/:sessionId/comparison', getComparison);
+router.get('/sessions/:sessionId/override-requests', getOverrideRequests);
+router.post('/override-requests/:overrideRequestId/approve', approveOverride);
+router.post('/override-requests/:overrideRequestId/deny', denyOverride);
 
 export default router;

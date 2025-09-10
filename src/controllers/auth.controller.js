@@ -8,6 +8,7 @@ import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import User from '../models/user.model.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 export const studentExtractData = async (req, res, next) => {
   try {
@@ -37,13 +38,6 @@ export const studentSignUp = async (req, res, next) => {
       ['email', 'password', 'matricNumber', 'name', 'programme', 'level'],
       req.body
     );
-
-    const existingUser = await User.findOne({
-      $or: [{ email }, { matricNumber }],
-    }).lean();
-    if (existingUser) {
-      throw new BadRequestError('Email or matric number already in use');
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -132,15 +126,6 @@ export const lecturerSignUp = async (req, res, next) => {
       req.body
     );
 
-    const existingUser = await User.findOne({ email, role: 'lecturer' }).lean();
-    if (!existingUser) {
-      throw new NotFoundError('Lecturer email not found in seeded data');
-    }
-
-    if (existingUser.password) {
-      throw new BadRequestError('Lecturer account already exists');
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const updatedUser = await User.findOneAndUpdate(
@@ -184,6 +169,10 @@ export const verifyEmail = async (req, res, next) => {
       // eslint-disable-next-line no-unused-vars
     } catch (error) {
       throw new BadRequestError('Invalid or expired verification token');
+    }
+
+    if (!decoded.id || !mongoose.isValidObjectId(decoded.id)) {
+      throw new BadRequestError('Invalid user ID in token');
     }
 
     const user = await User.findById(decoded.id).select('isEmailVerified');

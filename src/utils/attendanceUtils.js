@@ -1,64 +1,160 @@
 import User from '../models/user.model.js';
-import BadRequestError from '../errors/BadRequestError.js';
+import { BadRequestError } from '../errors/index.js';
 
 export const checkGeofence = (latitude, longitude, corners) => {
-  let inside = false;
+  // Validating that latitude and longitude are valid numbers
+  if (
+    typeof latitude !== 'number' ||
+    typeof longitude !== 'number' ||
+    isNaN(latitude) ||
+    isNaN(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    console.error(
+      `Invalid coordinates: latitude=${latitude}, longitude=${longitude}`
+    );
+    throw new BadRequestError('Invalid latitude or longitude');
+  }
 
-  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+  // Validating that the corners is an array with exactly 4 elements and that each has valid
+  // latitude and longitude
+  if (!Array.isArray(corners) || corners.length !== 4) {
+    console.error(
+      `Invalid corners: expected 4 corners, got ${corners?.length || 0}`
+    );
+    throw new BadRequestError('Classroom must have exactly 4 corners');
+  }
+
+  // Validate that each corner has latitude and longitude
+  for (const [index, corner] of corners.entries()) {
     if (
-      corners[i].latitude > latitude !== corners[j].latitude > latitude &&
-      longitude <
-        ((corners[j].longitude - corners[i].longitude) *
-          (latitude - corners[i].latitude)) /
-          (corners[j].latitude - corners[i].latitude) +
-          corners[i].longitude
+      !corner ||
+      typeof corner.latitude !== 'number' ||
+      typeof corner.longitude !== 'number' ||
+      isNaN(corner.latitude) ||
+      isNaN(corner.longitude)
+    ) {
+      console.error(
+        `Invalid corner at index ${index}: ${JSON.stringify(corner)}`
+      );
+      throw new BadRequestError(`Invalid corner data at index ${index}`);
+    }
+  }
+
+  // Ray-casting algorithm to ensure the corners of the classroom aren't self-intersecting
+  let inside = false;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const xi = corners[i].latitude;
+    const yi = corners[i].longitude;
+    const xj = corners[j].latitude;
+    const yj = corners[j].longitude;
+
+    // Avoiding division by zero
+    if (xi === xj) continue;
+
+    if (
+      yi > longitude !== yj > longitude &&
+      latitude < ((xj - xi) * (longitude - yi)) / (xj - xi) + xi
     ) {
       inside = !inside;
     }
+  }
+
+  if (!inside) {
+    console.log(
+      `Geofence check failed: point (${latitude}, ${longitude}) outside polygon`
+    );
   }
 
   return inside;
 };
 
 export const handleDeviceValidation = async (matricNumber, deviceId) => {
+  // Validate inputs
+  if (
+    !matricNumber ||
+    typeof matricNumber !== 'string' ||
+    !deviceId ||
+    typeof deviceId !== 'string'
+  ) {
+    console.error(
+      `Invalid input: matricNumber=${matricNumber}, deviceId=${deviceId}`
+    );
+    throw new BadRequestError('Invalid matricNumber or deviceId');
+  }
+
   try {
-    const deviceOwner = await User.findOne({ deviceId })
-      .select('matricNumber name')
-      .lean();
+    // Check if matricNumber exists
+    const user = await User.findOne({ matricNumber }).select('_id').lean();
+    if (!user) {
+      console.error(`User not found for matricNumber: ${matricNumber}`);
+      throw new BadRequestError('Student not found');
+    }
 
-    if (!deviceOwner) {
-      await User.updateOne({ matricNumber }, { deviceId });
+    // Check device ownership with atomic update
+    const deviceOwner = await User.findOneAndUpdate(
+      { deviceId, matricNumber: { $ne: matricNumber } }, // Find device owned by another user
+      {}, // No update, just checking
+      { select: 'matricNumber name', lean: true }
+    );
+
+    if (deviceOwner) {
+      console.log(
+        `Device conflict: deviceId=${deviceId} owned by ${deviceOwner.matricNumber}`
+      );
+      return {
+        success: false,
+        message: 'This device is already tied to another student account',
+        conflictInfo: {
+          matricNumber: deviceOwner.matricNumber,
+          name: deviceOwner.name,
+        },
+      };
+    }
+
+    // Register device if not already registered
+    const updatedUser = await User.findOneAndUpdate(
+      { matricNumber, deviceId: { $exists: false } }, // Only update if deviceId not set
+      { deviceId },
+      { select: '_id', lean: true }
+    );
+
+    if (!updatedUser) {
+      // Device already registered to this user
       return { success: true };
     }
 
-    if (deviceOwner.matricNumber === matricNumber) {
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      message: 'This device is already tied to another student account',
-      conflictInfo: {
-        matricNumber: deviceOwner.matricNumber,
-        name: deviceOwner.name,
-      },
-    };
-    // eslint-disable-next-line no-unused-vars
+    console.log(`Device ${deviceId} assigned to matricNumber: ${matricNumber}`);
+    return { success: true };
   } catch (error) {
-    throw new BadRequestError('Error validating device');
+    console.error(`Device validation error: ${error.message}`);
+    throw new BadRequestError(`Error validating device: ${error.message}`);
   }
 };
 
 export const fetchOriginalOwner = async (deviceId) => {
+  // Validate input
+  if (!deviceId || typeof deviceId !== 'string') {
+    console.error(`Invalid deviceId: ${deviceId}`);
+    throw new BadRequestError('Invalid deviceId');
+  }
+
   try {
     const deviceOwner = await User.findOne({ deviceId })
       .select('matricNumber name selfie')
       .lean();
 
     if (!deviceOwner) {
+      console.log(`No owner found for deviceId: ${deviceId}`);
       return { success: true };
     }
 
+    console.log(
+      `Found owner for deviceId: ${deviceId}, matricNumber: ${deviceOwner.matricNumber}`
+    );
     return {
       success: true,
       conflictInfo: {
@@ -67,11 +163,10 @@ export const fetchOriginalOwner = async (deviceId) => {
         selfie: deviceOwner.selfie,
       },
     };
-    // eslint-disable-next-line no-unused-vars
   } catch (error) {
-    return {
-      success: false,
-      message: 'Error Fetching Original device owner',
-    };
+    console.error(`Error fetching original owner: ${error.message}`);
+    throw new BadRequestError(
+      `Error fetching original device owner: ${error.message}`
+    );
   }
 };

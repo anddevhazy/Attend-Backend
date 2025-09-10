@@ -61,6 +61,11 @@ export const getDashboard = async (req, res, next) => {
   }
 };
 
+const isValidBase64Image = (selfie) => {
+  const base64Regex = /^data:image\/(jpeg|png|jpg);base64,[A-Za-z0-9+/=]+$/;
+  return base64Regex.test(selfie);
+};
+
 export const markAttendance = async (req, res, next) => {
   try {
     const { sessionId, deviceId, selfie, latitude, longitude, matricNumber } =
@@ -77,6 +82,12 @@ export const markAttendance = async (req, res, next) => {
       ],
       req.body
     );
+
+    if (!isValidBase64Image(selfie)) {
+      throw new BadRequestError(
+        'Invalid selfie format: must be a base64-encoded image'
+      );
+    }
 
     const session = await Session.findById(sessionId)
       .select('status endTime attendees locationId courseId')
