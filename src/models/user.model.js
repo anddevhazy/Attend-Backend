@@ -25,6 +25,10 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       match: [/.+@.+\..+/, 'Invalid email format'],
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
     matricNumber: {
       type: String,
       unique: true,
@@ -95,6 +99,19 @@ UserSchema.methods.generateToken = function () {
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
+};
+
+UserSchema.methods.comparePassword = async function (userPassword) {
+  return await bcrypt.compare(userPassword, this.password);
+};
+
+UserSchema.statics.verifyEmailToken = function (token) {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+    // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    return null;
+  }
 };
 
 export default mongoose.model('User', UserSchema);

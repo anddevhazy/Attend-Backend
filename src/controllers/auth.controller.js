@@ -5,8 +5,6 @@ import validateRequiredFields from '../utils/validateRequiredFields.js';
 import extractStudentDataFromImage from '../utils/extractStudentDataFromImage.js';
 import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import User from '../models/user.model.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 
 export const studentExtractData = async (req, res, next) => {
@@ -74,14 +72,12 @@ export const login = async (req, res, next) => {
 
     validateRequiredFields(['email', 'password'], req.body);
 
-    const user = await User.findOne({ email })
-      .select('password role email name matricNumber')
-      .lean();
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       throw new BadRequestError('Invalid credentials');
     }
@@ -164,16 +160,9 @@ export const verifyEmail = async (req, res, next) => {
       throw new BadRequestError('Verification token is required');
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-      // eslint-disable-next-line no-unused-vars
-    } catch (error) {
+    const decoded = User.verifyEmailToken(token);
+    if (!decoded || !decoded.id || !mongoose.isValidObjectId(decoded.id)) {
       throw new BadRequestError('Invalid or expired verification token');
-    }
-
-    if (!decoded.id || !mongoose.isValidObjectId(decoded.id)) {
-      throw new BadRequestError('Invalid user ID in token');
     }
 
     const user = await User.findById(decoded.id).select('isEmailVerified');
