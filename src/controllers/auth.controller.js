@@ -3,7 +3,6 @@ import { BadRequestError, NotFoundError } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
 import extractStudentDataFromImage from '../utils/extractStudentDataFromImage.js';
-import generateToken from '../utils/generateToken.js';
 import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import User from '../models/user.model.js';
 import bcrypt from 'bcrypt';
@@ -39,11 +38,9 @@ export const studentSignUp = async (req, res, next) => {
       req.body
     );
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     const user = await User.create({
       email,
-      password: hashedPassword,
+      password,
       matricNumber,
       name,
       programme,
@@ -51,7 +48,7 @@ export const studentSignUp = async (req, res, next) => {
       role: 'student',
     });
 
-    const verificationToken = generateToken(user);
+    const verificationToken = user.generateToken();
     await sendVerificationEmail(user, verificationToken);
 
     return formatResponse(
@@ -89,7 +86,7 @@ export const login = async (req, res, next) => {
       throw new BadRequestError('Invalid credentials');
     }
 
-    const token = generateToken(user);
+    const token = user.generateToken();
 
     return formatResponse(
       res,
@@ -126,27 +123,31 @@ export const lecturerSignUp = async (req, res, next) => {
       req.body
     );
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.findOne({ email, role: 'lecturer' });
+    if (!user) {
+      throw new NotFoundError('Lecturer not found');
+    }
 
-    const updatedUser = await User.findOneAndUpdate(
-      { email, role: 'lecturer' },
-      { password: hashedPassword, name, department, faculty },
-      { new: true, select: 'email name role department faculty' }
-    );
+    user.password = password;
+    user.name = name;
+    user.department = department;
+    user.faculty = faculty;
 
-    const verificationToken = generateToken(updatedUser);
-    await sendVerificationEmail(updatedUser, verificationToken);
+    await user.save();
+
+    const verificationToken = user.generateToken();
+    await sendVerificationEmail(user, verificationToken);
 
     return formatResponse(
       res,
       StatusCodes.OK,
       {
-        id: updatedUser._id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        role: updatedUser.role,
-        department: updatedUser.department,
-        faculty: updatedUser.faculty,
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        department: user.department,
+        faculty: user.faculty,
       },
       'Lecturer account updated. Please verify your email.'
     );

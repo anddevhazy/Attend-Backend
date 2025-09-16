@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const UserSchema = new mongoose.Schema(
   {
@@ -80,5 +82,19 @@ const UserSchema = new mongoose.Schema(
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ matricNumber: 1 }, { unique: true });
+
+UserSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+UserSchema.methods.generateToken = function () {
+  return jwt.sign(
+    { id: this._id, role: this.role, email: this.email },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+};
 
 export default mongoose.model('User', UserSchema);
