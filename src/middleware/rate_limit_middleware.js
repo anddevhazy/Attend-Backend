@@ -13,3 +13,10 @@ export const extractDataLimiter = rateLimit({
   max: 5, // Lower limit due to processing cost
   message: 'Too many image extraction requests, please try again later.',
 });
+
+// Rate limiter for marking attendance
+export const attendanceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit to 10 attendance attempts
+  message: 'Too many attendance attempts, please try again later.',
+});

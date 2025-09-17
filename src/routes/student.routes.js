@@ -1,5 +1,4 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import {
   getDashboard,
   markAttendance,
@@ -8,15 +7,9 @@ import {
   enrollInCourses,
 } from '../controllers/studentController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { attendanceLimiter } from '../middleware/rate_limit_middleware.js';
 
 const router = express.Router();
-
-// Rate limiter for marking attendance
-const attendanceLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit to 10 attendance attempts
-  message: 'Too many attendance attempts, please try again later.',
-});
 
 // Middleware to ensure user is a student
 const ensureStudent = (req, res, next) => {
