@@ -6,12 +6,12 @@
 
 // Starting the Express server upon successful DB connection
 
-import dotenv from "dotenv";
-import { app } from "./app.js";
+import dotenv from 'dotenv';
+import { app } from './app.js';
 
-dotenv.config({ path: "./.env" });
+dotenv.config({ path: './.env' });
 
-import connectDB from "./db/connect.js";
+import connectDB from './db/connect.js';
 
 const PORT = process.env.PORT || 8000;
 
@@ -22,7 +22,7 @@ const startServer = async () => {
       console.log(`⚙️ Server is running at port: ${PORT}`);
     });
   } catch (err) {
-    console.log("❌ MONGO DB connection failed!!!", err);
+    console.log('❌ MONGO DB connection failed!!!', err);
     process.exit(1);
   }
 };

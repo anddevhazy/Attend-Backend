@@ -1,11 +1,26 @@
-import Sessions from '../models/attendanceSession.model.js';
+// I should use asyncHandler util in my next project
+
+// That big chunk of try { ... } catch (error) { next(error) } is exactly what asyncHandler saves you from writing over and over in each controller.
+
+import { StatusCodes } from 'http-status-codes';
+import {
+  BadRequestError,
+  NotFoundError,
+  InternalServerError,
+} from '../errors/index.js';
+import formatResponse from '../utils/formatResponse.js';
+import validateRequiredFields from '../utils/validateRequiredFields.js';
+import {
+  checkGeofence,
+  handleDeviceValidation,
+  fetchOriginalOwner,
+} from '../utils/attendanceUtils.js';
+import Session from '../models/attendanceSession.model.js';
 import User from '../models/user.model.js';
 import OverrideRequest from '../models/overrideRequest.model.js';
 import Course from '../models/course.model.js';
-// eslint-disable-next-line no-unused-vars
-import Location from '../models/location.model.js';
 
-export const getDashboard = async (req, res) => {
+export const getDashboard = async (req, res, next) => {
   try {
     const { chosenCourses } = req.query;
 
@@ -15,18 +30,22 @@ export const getDashboard = async (req, res) => {
       courseFilter = { courseId: { $in: idOfChosenCourses } };
     }
 
-    const activeSession = await Sessions.find({
+    const activeSessions = await Session.find({
       ...courseFilter,
       status: 'active',
-      // startTime: { $lte: new Date() },
       endTime: { $gt: new Date() },
     })
+      .select('courseId lecturerId locationId attendees endTime')
       .populate('courseId', 'name')
       .populate('lecturerId', 'name')
-      .populate('locationId', 'name');
+      .populate('locationId', 'name')
+      .lean();
 
-    const timeRemainingAndAttendeesCount = activeSession.map((session) => ({
-      ...session.toObject(),
+    const sessionsData = activeSessions.map((session) => ({
+      id: session._id,
+      courseName: session.courseId?.name,
+      lecturerName: session.lecturerId?.name,
+      locationName: session.locationId?.name,
       timeRemaining: Math.max(
         0,
         Math.floor((session.endTime - new Date()) / (1000 * 60))
@@ -34,58 +53,54 @@ export const getDashboard = async (req, res) => {
       attendeeCount: session.attendees.length,
     }));
 
-    res.status(200).json({
-      success: true,
-      data: {
-        activeSession: timeRemainingAndAttendeesCount,
-      },
+    return formatResponse(res, StatusCodes.OK, {
+      activeSessions: sessionsData,
     });
   } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching dashboard data',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
-export const markAttendance = async (req, res) => {
+const isValidBase64Image = (selfie) => {
+  const base64Regex = /^data:image\/(jpeg|png|jpg);base64,[A-Za-z0-9+/=]+$/;
+  return base64Regex.test(selfie);
+};
+
+export const markAttendance = async (req, res, next) => {
   try {
     const { sessionId, deviceId, selfie, latitude, longitude, matricNumber } =
       req.body;
 
-    if (
-      !sessionId ||
-      !deviceId ||
-      !selfie ||
-      !latitude ||
-      !longitude ||
-      !matricNumber
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Missing required fields: sessionId, deviceId, selfie, latitude, longitude, matricNumber',
-      });
+    validateRequiredFields(
+      [
+        'sessionId',
+        'deviceId',
+        'selfie',
+        'latitude',
+        'longitude',
+        'matricNumber',
+      ],
+      req.body
+    );
+
+    if (!isValidBase64Image(selfie)) {
+      throw new BadRequestError(
+        'Invalid selfie format: must be a base64-encoded image'
+      );
     }
 
-    const session = await Sessions.findById(sessionId)
-      .populate('locationId')
-      .populate('courseId', 'name');
+    const session = await Session.findById(sessionId)
+      .select('status endTime attendees locationId courseId')
+      .populate('locationId', 'corners')
+      .populate('courseId', 'name')
+      .exec();
 
     if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found',
-      });
+      throw new NotFoundError('Session not found');
     }
 
     if (session.status !== 'active' || new Date() > session.endTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session has ended or is not active',
-      });
+      throw new BadRequestError('Session has ended or is not active');
     }
 
     const hasAlreadyMarked = session.attendees.some(
@@ -93,45 +108,33 @@ export const markAttendance = async (req, res) => {
     );
 
     if (hasAlreadyMarked) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Attendance already marked for this session with this matric number',
-      });
+      throw new BadRequestError(
+        'Attendance already marked for this session with this matric number'
+      );
     }
 
-    const location = session.locationId;
     const isWithinGeofence = checkGeofence(
       latitude,
       longitude,
-      location.corners
+      session.locationId.corners
     );
-
     if (!isWithinGeofence) {
-      return res.status(400).json({
-        success: false,
-        message: 'You are not within the required location for this class',
-      });
+      throw new BadRequestError(
+        'You are not within the required location for this class'
+      );
     }
 
     const deviceCheck = await handleDeviceValidation(matricNumber, deviceId);
-
     if (!deviceCheck.success) {
-      return res.status(400).json({
-        success: false,
-        message: deviceCheck.message,
+      throw new BadRequestError(deviceCheck.message, {
         requiresOverride: true,
         conflictInfo: deviceCheck.conflictInfo,
       });
     }
 
-    const user = await User.findOne({ matricNumber });
-
+    const user = await User.findOne({ matricNumber }).select('_id').lean();
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found with this matric number',
-      });
+      throw new NotFoundError('Student not found with this matric number');
     }
 
     session.attendees.push({
@@ -144,213 +147,118 @@ export const markAttendance = async (req, res) => {
 
     await session.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Attendance marked successfully',
-      data: {
+    return formatResponse(
+      res,
+      StatusCodes.OK,
+      {
         sessionName: session.courseId.name,
         timestamp: new Date(),
         attendeeCount: session.attendees.length,
       },
-    });
+      'Attendance marked successfully'
+    );
   } catch (error) {
-    console.error('Mark attendance error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error marking attendance',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
-function checkGeofence(latitude, longitude, corners) {
-  let inside = false;
-
-  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
-    if (
-      corners[i].latitude > latitude !== corners[j].latitude > latitude &&
-      longitude <
-        ((corners[j].longitude - corners[i].longitude) *
-          (latitude - corners[i].latitude)) /
-          (corners[j].latitude - corners[i].latitude) +
-          corners[i].longitude
-    ) {
-      inside = !inside;
-    }
-  }
-
-  return inside;
-}
-
-async function handleDeviceValidation(matricNumber, deviceId) {
-  try {
-    const deviceOwner = await User.findOne({ deviceId });
-
-    if (!deviceOwner) {
-      await User.updateOne({ matricNumber }, { deviceId });
-      return { success: true };
-    }
-
-    if (deviceOwner.matricNumber === matricNumber) {
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      message: 'This device is already tied to another student account',
-      conflictInfo: {
-        matricNumber: deviceOwner.matricNumber,
-        name: deviceOwner.name,
-      },
-    };
-  } catch (error) {
-    console.error('Device validation error:', error);
-    return {
-      success: false,
-      message: 'Error validating device',
-    };
-  }
-}
-
-export const requestOverride = async (req, res) => {
+export const requestOverride = async (req, res, next) => {
   try {
     const { sessionId, selfie, deviceId, matricNumber } = req.body;
 
-    if (!sessionId || !selfie || !deviceId || !matricNumber) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Missing required fields: sessionId, selfie, deviceId, matricNumber, ',
-      });
-    }
+    validateRequiredFields(
+      ['sessionId', 'selfie', 'deviceId', 'matricNumber'],
+      req.body
+    );
 
-    const session = await Sessions.findById(sessionId);
+    const session = await Session.findById(sessionId)
+      .select('status endTime lecturerId')
+      .lean();
     if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found',
-      });
+      throw new NotFoundError('Session not found');
     }
 
     if (session.status !== 'active' || new Date() > session.endTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session has ended, cannot request override',
-      });
+      throw new BadRequestError('Session has ended, cannot request override');
     }
-
-    const originalOwner = await fetchOriginalOwner(deviceId);
 
     const existingRequest = await OverrideRequest.findOne({
       sessionId,
       matricNumber,
       status: 'pending',
-    });
+    }).lean();
 
     if (existingRequest) {
-      return res.status(400).json({
-        success: false,
-        message: 'Override request already submitted for this session',
-      });
+      throw new BadRequestError(
+        'Override request already submitted for this session'
+      );
     }
-    const user = await User.findOne({ matricNumber });
 
+    const user = await User.findOne({ matricNumber }).select('_id').lean();
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found with this matric number',
-      });
+      throw new NotFoundError('Student not found with this matric number');
     }
 
-    const overrideRequest = new OverrideRequest({
+    const originalOwner = await fetchOriginalOwner(deviceId);
+    if (
+      !originalOwner.success &&
+      originalOwner.message === 'Error Fetching Original device owner'
+    ) {
+      throw new InternalServerError('Error fetching original device owner');
+    }
+
+    const overrideRequest = await OverrideRequest.create({
       studentId: user._id,
       sessionId,
       matricNumber,
       selfie,
-      originalOwnerMatric: originalOwner.conflictInfo.matricNumber,
-      originalOwnerSelfie: originalOwner.conflictInfo.selfie,
+      originalOwnerMatric: originalOwner.conflictInfo?.matricNumber,
+      originalOwnerSelfie: originalOwner.conflictInfo?.selfie,
       lecturerId: session.lecturerId,
     });
 
-    await overrideRequest.save();
-
-    res.status(201).json({
-      success: true,
-      message:
-        'Override request submitted successfully. Waiting for lecturer approval.',
-      data: {
+    return formatResponse(
+      res,
+      StatusCodes.CREATED,
+      {
         overrideRequestId: overrideRequest._id,
-        realOwner: originalOwner.conflictInfo.matricNumber,
+        realOwner: originalOwner.conflictInfo?.matricNumber,
       },
-    });
+      'Override request submitted successfully. Waiting for lecturer approval.'
+    );
   } catch (error) {
-    console.error('Request override error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error submitting override request',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
-async function fetchOriginalOwner(deviceId) {
+export const selectCourses = async (req, res, next) => {
   try {
-    const deviceOwner = await User.findOne({ deviceId });
+    const courses = await Course.find({})
+      .select('name _id')
+      .sort({ name: 1 })
+      .lean();
 
-    return {
-      conflictInfo: {
-        matricNumber: deviceOwner.matricNumber,
-        name: deviceOwner.name,
-        selfie: deviceOwner.selfie,
-      },
-    };
-  } catch (error) {
-    console.error('Error Fetching Original device owner', error);
-    return {
-      success: false,
-      message: 'Error Fetching Original device owner',
-    };
-  }
-}
-
-export const selectCourses = async (req, res) => {
-  try {
-    const courses = await Course.find({}).sort({ name: 1 });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        courses,
-        totalCourses: courses.length,
-      },
+    return formatResponse(res, StatusCodes.OK, {
+      courses,
+      totalCourses: courses.length,
     });
   } catch (error) {
-    console.error('Get courses error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching courses',
-      error: error.message,
-    });
+    next(error);
   }
 };
 
-export const enrollInCourses = async (req, res) => {
+export const enrollInCourses = async (req, res, next) => {
   try {
     const { studentId, courseIds } = req.body;
 
-    if (!studentId || !Array.isArray(courseIds) || courseIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'studentId and courseIds array are required',
-      });
+    validateRequiredFields(['studentId'], req.body);
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      throw new BadRequestError('courseIds must be a non-empty array');
     }
 
-    const student = await User.findById(studentId);
+    const student = await User.findById(studentId).select('selectedCourses');
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found',
-      });
+      throw new NotFoundError('Student not found');
     }
 
     student.selectedCourses = courseIds;
@@ -361,19 +269,15 @@ export const enrollInCourses = async (req, res) => {
       { $addToSet: { students: student._id } }
     );
 
-    res.status(200).json({
-      success: true,
-      message: 'Courses successfully selected',
-      data: {
+    return formatResponse(
+      res,
+      StatusCodes.OK,
+      {
         selectedCourses: student.selectedCourses,
       },
-    });
+      'Courses successfully selected'
+    );
   } catch (error) {
-    console.error('Enroll in courses error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error enrolling in courses',
-      error: error.message,
-    });
+    next(error);
   }
 };

@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon -r dotenv/config src/index.js",
+    "start": "node -r dotenv/config src/index.js",
     "seed": "node -r dotenv/config seed.js",
     "lint": "eslint ."
   },
@@ -11,9 +12,18 @@
   "license": "ISC",
   "description": "The Backend for Funaab's Attendance Taking App",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "mongoose": "^8.15.1"
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "http-status-codes": "^2.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.15.1",
+    "nodemailer": "^7.0.6",
+    "tesseract.js": "^6.0.1",
+    "xss-clean": "^0.1.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
@@ -21,5 +31,8 @@
     "globals": "^16.2.0",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
