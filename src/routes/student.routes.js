@@ -6,7 +6,7 @@ import {
   selectCourses,
   enrollInCourses,
 } from '../controllers/student.controller.js';
-import { authenticateToken } from '../middleware/authMiddleware.js';
+import { authenticateToken } from '../middleware/auth_middleware.js';
 import { attendanceLimiter } from '../middleware/rate_limit_middleware.js';
 
 const router = express.Router();
