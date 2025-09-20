@@ -6,7 +6,7 @@ import {
   logout,
   verifyEmail,
   studentExtractData,
-} from '../controllers/authController.js';
+} from '../controllers/auth.controller.js';
 import { authenticateToken } from '../middleware/auth_middleware.js';
 import { checkDuplicateUser } from '../middleware/checkDuplicateUser_middleware.js';
 import {

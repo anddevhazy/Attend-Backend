@@ -5,7 +5,7 @@ import {
   requestOverride,
   selectCourses,
   enrollInCourses,
-} from '../controllers/studentController.js';
+} from '../controllers/student.controller.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 import { attendanceLimiter } from '../middleware/rate_limit_middleware.js';
 

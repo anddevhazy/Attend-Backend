@@ -6,7 +6,7 @@ import {
   getOverrideRequests,
   approveOverride,
   denyOverride,
-} from '../controllers/lecturerController.js';
+} from '../controllers/lecturer.controller.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
