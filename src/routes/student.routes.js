@@ -19,7 +19,36 @@ const ensureStudent = (req, res, next) => {
   next();
 };
 
-router.use(authenticateToken, ensureStudent); // Apply to all student routes
+/**
+ * @swagger
+ * /api/v1/student/dashboard:
+ *   get:
+ *     summary: Get student dashboard
+ *     description: Retrieve the dashboard data for a logged-in student.
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 studentId:
+ *                   type: string
+ *                   example: 12345
+ *                 courses:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                     example: CS101
+ *       403:
+ *         description: Access denied, student role required
+ */
+
+router.use(authenticateToken, ensureStudent);
 router.get('/dashboard', getDashboard);
 router.post('/attendance', attendanceLimiter, markAttendance);
 router.post('/override-request', requestOverride);

@@ -19,7 +19,6 @@ const UserSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      unique: true,
       required: true,
       lowercase: true,
       trim: true,
@@ -31,7 +30,6 @@ const UserSchema = new mongoose.Schema(
     },
     matricNumber: {
       type: String,
-      unique: true,
       required: true,
       uppercase: true,
       trim: true,
