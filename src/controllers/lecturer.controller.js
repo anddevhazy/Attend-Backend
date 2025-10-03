@@ -11,6 +11,8 @@ import {
 } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
+import { createQueue } from '../queues/redis.js';
+import redis from '../queues/redis.js';
 
 export const createSession = async (req, res, next) => {
   try {
@@ -80,7 +82,29 @@ export const getLiveAttendance = async (req, res, next) => {
       timestamp: att.timestamp,
     }));
 
-    return formatResponse(res, StatusCodes.OK, { attendees });
+    // Redis Pub/Sub for real-time updates
+    const channel = `attendance:${sessionId}`;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Subscribe to Redis channel
+    const subscriber = redis.duplicate();
+    await subscriber.subscribe(channel);
+
+    subscriber.on('message', (channel, message) => {
+      res.write(`data: ${message}\n\n`);
+    });
+
+    // Send initial attendees
+    res.write(`data: ${JSON.stringify({ attendees })}\n\n`);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      subscriber.unsubscribe();
+      subscriber.quit();
+      res.end();
+    });
   } catch (error) {
     next(error);
   }
@@ -190,6 +214,13 @@ export const approveOverride = async (req, res, next) => {
 
     await Promise.all([overrideRequest.save(), session.save()]);
 
+    // Queue notification for student
+    const notificationQueue = createQueue('notification');
+    await notificationQueue.add('override-decision', {
+      userId: overrideRequest.studentId._id,
+      message: `Your override request for session ${session._id} has been approved.`,
+    });
+
     return formatResponse(
       res,
       StatusCodes.OK,
@@ -229,11 +260,23 @@ export const denyOverride = async (req, res, next) => {
       );
     }
 
+    const session = overrideRequest.sessionId;
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
     overrideRequest.status = 'denied';
     overrideRequest.lecturerId = lecturerId;
     overrideRequest.decisionTimestamp = new Date();
 
     await overrideRequest.save();
+
+    // Queue notification for student
+    const notificationQueue = createQueue('notification');
+    await notificationQueue.add('override-decision', {
+      userId: overrideRequest.studentId._id,
+      message: `Your override request for session ${session._id} has been approved.`,
+    });
 
     return formatResponse(
       res,

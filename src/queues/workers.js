@@ -9,6 +9,7 @@ import {
   handleDeviceValidation,
 } from '../utils/attendanceUtils.js';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
+import redis from '../queues/redis.js';
 
 // Initialize schedulers for each queue
 createScheduler('extract-data');
@@ -118,6 +119,18 @@ createWorker('mark-attendance', async (job) => {
   });
 
   await session.save();
+
+  // In attendance worker, after session.save()
+  const channel = `attendance:${sessionId}`;
+  await redis.publish(
+    channel,
+    JSON.stringify({
+      matricNumber,
+      name: user.name, // Fetch name if needed
+      level: user.level, // Fetch level if needed
+      timestamp: new Date(),
+    })
+  );
 
   // Notify lecturer via queue (for getLiveAttendance)
   const notificationQueue = createQueue('notification');
