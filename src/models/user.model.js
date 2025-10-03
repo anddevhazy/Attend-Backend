@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema(
       required: [true, 'Name is required'],
       trim: true,
     },
+    fcmToken: { type: String },
     role: {
       type: String,
       enum: {

@@ -3,6 +3,8 @@ import { BadRequestError, NotFoundError } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
 import User from '../models/user.model.js';
+import JobResult from '../models/jobResult.model.js';
+import PendingLecturerUpdate from '../models/pendingLecturerUpdate.model.js';
 import mongoose from 'mongoose';
 import { createQueue } from '../queues/redis.js';
 
@@ -134,14 +136,17 @@ export const lecturerSignUp = async (req, res, next) => {
       throw new NotFoundError('Lecturer not found');
     }
 
-    user.password = password;
-    user.name = name;
-    user.department = department;
-    user.faculty = faculty;
-
-    await user.save();
-
     const verificationToken = user.generateToken();
+    await PendingLecturerUpdate.create({
+      userId: user._id,
+      email,
+      password,
+      name,
+      department,
+      faculty,
+      verificationToken,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    });
 
     const sendVerificationEmailQueue = createQueue('send-verification-email');
     await sendVerificationEmailQueue.add(
@@ -155,15 +160,8 @@ export const lecturerSignUp = async (req, res, next) => {
     return formatResponse(
       res,
       StatusCodes.OK,
-      {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-        faculty: user.faculty,
-      },
-      'Lecturer account updated. Verification email queued.'
+      { id: user._id, email: user.email },
+      'Verification email queued. Please verify to update lecturer details.'
     );
   } catch (error) {
     next(error);
@@ -193,6 +191,17 @@ export const verifyEmail = async (req, res, next) => {
     }
 
     user.isEmailVerified = true;
+
+    const pendingUpdate = await PendingLecturerUpdate.findOne({
+      userId: user._id,
+    });
+    if (pendingUpdate && user.role === 'lecturer') {
+      user.password = pendingUpdate.password;
+      user.name = pendingUpdate.name;
+      user.department = pendingUpdate.department;
+      user.faculty = pendingUpdate.faculty;
+      await pendingUpdate.deleteOne();
+    }
     await user.save();
 
     return formatResponse(
@@ -201,6 +210,43 @@ export const verifyEmail = async (req, res, next) => {
       {},
       'Email verified successfully'
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateFcmToken = async (req, res, next) => {
+  try {
+    const { fcmToken } = req.body;
+    validateRequiredFields(['fcmToken'], req.body);
+
+    await User.findByIdAndUpdate(req.user.id, { fcmToken }, { new: true });
+
+    return formatResponse(
+      res,
+      StatusCodes.OK,
+      {},
+      'FCM token updated successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkJobStatus = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const jobResult = await JobResult.findOne({ jobId }).lean();
+    if (!jobResult) {
+      throw new NotFoundError('Job not found');
+    }
+
+    return formatResponse(res, StatusCodes.OK, {
+      jobId: jobResult.jobId,
+      status: jobResult.status,
+      result: jobResult.result,
+      error: jobResult.error,
+    });
   } catch (error) {
     next(error);
   }

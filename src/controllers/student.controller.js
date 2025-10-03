@@ -13,6 +13,7 @@ import validateRequiredFields from '../utils/validateRequiredFields.js';
 import { fetchOriginalOwner } from '../utils/attendanceUtils.js';
 import Session from '../models/attendanceSession.model.js';
 import User from '../models/user.model.js';
+import JobResult from '../models/jobResult.model.js';
 import OverrideRequest from '../models/overrideRequest.model.js';
 import Course from '../models/course.model.js';
 import { createQueue } from '../queues/redis.js';
@@ -232,6 +233,28 @@ export const enrollInCourses = async (req, res, next) => {
       },
       'Courses successfully selected'
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkAttendanceStatus = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const jobResult = await JobResult.findOne({
+      jobId,
+      userId: req.user.id,
+    }).lean();
+    if (!jobResult) {
+      throw new NotFoundError('Attendance job not found');
+    }
+
+    return formatResponse(res, StatusCodes.OK, {
+      jobId: jobResult.jobId,
+      status: jobResult.status,
+      result: jobResult.result,
+      error: jobResult.error,
+    });
   } catch (error) {
     next(error);
   }
