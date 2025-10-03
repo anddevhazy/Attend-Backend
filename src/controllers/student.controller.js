@@ -10,15 +10,12 @@ import {
 } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
-import {
-  checkGeofence,
-  handleDeviceValidation,
-  fetchOriginalOwner,
-} from '../utils/attendanceUtils.js';
+import { fetchOriginalOwner } from '../utils/attendanceUtils.js';
 import Session from '../models/attendanceSession.model.js';
 import User from '../models/user.model.js';
 import OverrideRequest from '../models/overrideRequest.model.js';
 import Course from '../models/course.model.js';
+import { createQueue } from '../queues/redis.js';
 
 export const getDashboard = async (req, res, next) => {
   try {
@@ -89,73 +86,24 @@ export const markAttendance = async (req, res, next) => {
       );
     }
 
-    const session = await Session.findById(sessionId)
-      .select('status endTime attendees locationId courseId')
-      .populate('locationId', 'corners')
-      .populate('courseId', 'name')
-      .exec();
-
-    if (!session) {
-      throw new NotFoundError('Session not found');
-    }
-
-    if (session.status !== 'active' || new Date() > session.endTime) {
-      throw new BadRequestError('Session has ended or is not active');
-    }
-
-    const hasAlreadyMarked = session.attendees.some(
-      (attendee) => attendee.matricNumber === matricNumber
-    );
-
-    if (hasAlreadyMarked) {
-      throw new BadRequestError(
-        'Attendance already marked for this session with this matric number'
-      );
-    }
-
-    const isWithinGeofence = checkGeofence(
+    const markAttendanceQueue = createQueue('mark-attendance');
+    const job = await markAttendanceQueue.add('mark-attendance-job', {
+      sessionId,
+      deviceId,
+      selfie,
       latitude,
       longitude,
-      session.locationId.corners
-    );
-    if (!isWithinGeofence) {
-      throw new BadRequestError(
-        'You are not within the required location for this class'
-      );
-    }
-
-    const deviceCheck = await handleDeviceValidation(matricNumber, deviceId);
-    if (!deviceCheck.success) {
-      throw new BadRequestError(deviceCheck.message, {
-        requiresOverride: true,
-        conflictInfo: deviceCheck.conflictInfo,
-      });
-    }
-
-    const user = await User.findOne({ matricNumber }).select('_id').lean();
-    if (!user) {
-      throw new NotFoundError('Student not found with this matric number');
-    }
-
-    session.attendees.push({
-      studentId: user._id,
       matricNumber,
-      selfie,
-      deviceIdUsed: deviceId,
-      timestamp: new Date(),
+      userId: req.user.id,
     });
-
-    await session.save();
 
     return formatResponse(
       res,
-      StatusCodes.OK,
+      StatusCodes.ACCEPTED,
       {
-        sessionName: session.courseId.name,
-        timestamp: new Date(),
-        attendeeCount: session.attendees.length,
+        jobId: job.id,
       },
-      'Attendance marked successfully'
+      'Attendance marking started. Check Job status for results'
     );
   } catch (error) {
     next(error);
@@ -215,6 +163,13 @@ export const requestOverride = async (req, res, next) => {
       originalOwnerMatric: originalOwner.conflictInfo?.matricNumber,
       originalOwnerSelfie: originalOwner.conflictInfo?.selfie,
       lecturerId: session.lecturerId,
+    });
+
+    // Queue notification for lecturer
+    const notificationQueue = createQueue('notification');
+    await notificationQueue.add('override-request-job', {
+      userId: session.lecturerId,
+      message: `Override request from student ${matricNumber} for session ${sessionId}`,
     });
 
     return formatResponse(
