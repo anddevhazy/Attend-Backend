@@ -2,10 +2,9 @@ import { StatusCodes } from 'http-status-codes';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
-import extractStudentDataFromImage from '../utils/extractStudentDataFromImage.js';
-import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import User from '../models/user.model.js';
 import mongoose from 'mongoose';
+import { createQueue } from '../queues/redis.js';
 
 export const studentExtractData = async (req, res, next) => {
   try {
@@ -13,14 +12,17 @@ export const studentExtractData = async (req, res, next) => {
     if (!image) {
       throw new BadRequestError('Image is required for data extraction');
     }
-
-    const extractedData = await extractStudentDataFromImage(image);
+    const extractDataQueue = createQueue('extract-data');
+    const job = await extractDataQueue.add('extract-data-job', {
+      image,
+      userId: req.user?.id || 'anonymous', // Optional: Track user
+    });
 
     return formatResponse(
       res,
-      StatusCodes.OK,
-      extractedData,
-      'Student data extracted successfully'
+      StatusCodes.ACCEPTED,
+      { jobId: job.id },
+      'Image processing started. Check job status for results'
     );
   } catch (error) {
     next(error);
@@ -47,7 +49,15 @@ export const studentSignUp = async (req, res, next) => {
     });
 
     const verificationToken = user.generateToken();
-    await sendVerificationEmail(user, verificationToken);
+
+    const sendVerificationEmailQueue = createQueue('send-verification-email');
+    await sendVerificationEmailQueue.add(
+      'send-verification-email-student-job',
+      {
+        user: { email, name, _id: user._id },
+        verificationToken,
+      }
+    );
 
     return formatResponse(
       res,
@@ -59,7 +69,7 @@ export const studentSignUp = async (req, res, next) => {
         name: user.name,
         role: user.role,
       },
-      'Student account created. Please verify your email.'
+      'Student account created. Verification email queued.'
     );
   } catch (error) {
     next(error);
@@ -132,7 +142,15 @@ export const lecturerSignUp = async (req, res, next) => {
     await user.save();
 
     const verificationToken = user.generateToken();
-    await sendVerificationEmail(user, verificationToken);
+
+    const sendVerificationEmailQueue = createQueue('send-verification-email');
+    await sendVerificationEmailQueue.add(
+      'send-verification-email-lecturer-job',
+      {
+        user: { email, name, _id: user._id },
+        verificationToken,
+      }
+    );
 
     return formatResponse(
       res,
@@ -145,7 +163,7 @@ export const lecturerSignUp = async (req, res, next) => {
         department: user.department,
         faculty: user.faculty,
       },
-      'Lecturer account updated. Please verify your email.'
+      'Lecturer account updated. Verification email queued.'
     );
   } catch (error) {
     next(error);

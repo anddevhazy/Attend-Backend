@@ -5,7 +5,7 @@ import { sendNotification } from '../utils/notification.js';
 
 // Initialize schedulers for each queue
 createScheduler('extract-data');
-createScheduler('email');
+createScheduler('send-email-verification');
 createScheduler('notification');
 
 // Worker for extracting student data from image
@@ -26,7 +26,7 @@ createWorker('extract-data', async (job) => {
 });
 
 // Worker for sending verification emails
-createWorker('email', async (job) => {
+createWorker('send-verification-email', async (job) => {
   const { user, verificationToken } = job.data;
   try {
     await sendVerificationEmail(user, verificationToken);
