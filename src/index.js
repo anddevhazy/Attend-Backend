@@ -8,10 +8,10 @@
 
 import dotenv from 'dotenv';
 import { app } from './app.js';
+import connectDB from './db/connect.js';
+import './queues/workers.js';
 
 dotenv.config({ path: './.env' });
-
-import connectDB from './db/connect.js';
 
 const PORT = process.env.PORT || 8000;
 
