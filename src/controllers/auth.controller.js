@@ -10,36 +10,7 @@ import User from '../models/user.model.js';
 import JobResult from '../models/jobResult.model.js';
 import PendingLecturerUpdate from '../models/pendingLecturerUpdate.model.js';
 import mongoose from 'mongoose';
-import { createQueue, redis } from '../queues/redis.js';
-
-// export const studentExtractData = async (req, res, next) => {
-//   try {
-//     const { image } = req.body;
-//     if (!image) {
-//       throw new BadRequestError('Image is required for data extraction');
-//     }
-//     const extractDataQueue = createQueue('extract-data');
-//     try {
-//       await redis.ping();
-//       const job = await extractDataQueue.add('extract-data-job', {
-//         image,
-//         userId: req.user?.id || 'anonymous', // Optional: Track user
-//       });
-
-//       return formatResponse(
-//         res,
-//         StatusCodes.ACCEPTED,
-//         { jobId: job.id },
-//         'Image processing started. Check job status for results'
-//       );
-//     } catch (error) {
-//       console.error('Redis queue error:', error);
-//       throw new InternalServerError('Failed to queue image processing');
-//     }
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+import redis, { createQueue } from '../queues/redis.js';
 
 export const studentSignUp = async (req, res, next) => {
   try {
@@ -238,7 +209,7 @@ export const updateFcmToken = async (req, res, next) => {
   }
 };
 
-export const checkJobStatus = async (req, res, next) => {
+export const checkActivateAccountStatus = async (req, res, next) => {
   try {
     const { jobId } = req.params;
     const jobResult = await JobResult.findOne({ jobId }).lean();

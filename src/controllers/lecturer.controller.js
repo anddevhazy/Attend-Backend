@@ -294,32 +294,3 @@ export const denyOverride = async (req, res, next) => {
     next(error);
   }
 };
-
-// selectCourses
-
-// enrollINCourses
-
-// create session
-
-// getDashboard
-
-// markAttendance
-
-// getComparison
-
-// getLiveAttendance
-
-// requestOverride
-
-// getOverrideRequests
-
-// approveOverride
-
-// denyOverride
-
-// student sign up
-// student login
-// student logout
-// lecturer sign up
-// lecturer login
-// lecturer logout

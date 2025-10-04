@@ -5,7 +5,7 @@ import {
   requestOverride,
   selectCourses,
   enrollInCourses,
-  checkAttendanceStatus,
+  checkMarkAttendanceStatus,
 } from '../controllers/student.controller.js';
 import { authenticateToken } from '../middleware/auth_middleware.js';
 import { attendanceLimiter } from '../middleware/rate_limit_middleware.js';
@@ -56,10 +56,10 @@ router.post('/override-request', requestOverride);
 router.get('/courses', selectCourses);
 router.post('/enroll', enrollInCourses);
 router.get(
-  '/check-attendance/:jobId',
+  '/check-status-mark-attendance/:jobId',
   authenticateToken,
   ensureStudent,
-  checkAttendanceStatus
+  checkMarkAttendanceStatus
 );
 
 export default router;

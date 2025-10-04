@@ -1,4 +1,5 @@
-import { Queue, Worker, QueueScheduler } from 'bullmq';
+import pkg from 'bullmq';
+const { Queue, Worker } = pkg;
 import Redis from 'ioredis';
 import { notifyAdmins } from '../utils/adminNotification.js';
 
@@ -37,8 +38,5 @@ export const createWorker = (name, processor) =>
     connection: redis,
     autorun: false,
   });
-
-export const createScheduler = (name) =>
-  new QueueScheduler(name, { connection: redis });
 
 export default redis;

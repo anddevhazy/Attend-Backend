@@ -1,7 +1,7 @@
 import Tesseract from 'tesseract.js';
 import { InternalServerError } from '../errors/index.js';
 
-const extractStudentDataFromImage = async (image) => {
+export const extractStudentDataFromImage = async (image) => {
   try {
     const {
       data: { text },
@@ -27,5 +27,3 @@ const extractStudentDataFromImage = async (image) => {
     );
   }
 };
-
-export default extractStudentDataFromImage;

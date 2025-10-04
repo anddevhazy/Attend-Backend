@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { createWorker, createScheduler, redis } from './redis.js';
+import redis, { createWorker } from './redis.js';
 import { extractStudentDataFromImage } from '../utils/extractStudentDataFromImage.js';
 import sendVerificationEmail from '../utils/sendVerificationEmail.js';
 import { sendNotification } from '../utils/notification.js';
@@ -36,10 +36,6 @@ const startWorkers = async () => {
   while (attempt <= maxRetries) {
     try {
       await redis.ping();
-      createScheduler('extract-data');
-      createScheduler('send-verification-email');
-      createScheduler('mark-attendance');
-      createScheduler('notification');
 
       await startWorker('extract-data', async (job) => {
         const { image, userId } = job.data;

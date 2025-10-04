@@ -246,7 +246,7 @@ export const enrollInCourses = async (req, res, next) => {
   }
 };
 
-export const checkAttendanceStatus = async (req, res, next) => {
+export const checkMarkAttendanceStatus = async (req, res, next) => {
   try {
     const { jobId } = req.params;
     const jobResult = await JobResult.findOne({
@@ -267,3 +267,28 @@ export const checkAttendanceStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+/*
+lecturerSignUp (3 profiles)
+verifyEmail
+studentSignUp (6 profiles)
+verifyEmail
+login (9 profiles)
+updateFcmToken
+activateAccount
+checkActivateAccountStatus
+selectCourses
+enrollInCourses
+createSession
+getDashboard
+markAttendance
+checkMarkAttendanceStatus
+getLiveAttendance
+requestOverride
+getOverrideRequests
+approveOverride
+denyOverride
+getComparison
+checkJobStatus
+logout
+*/
