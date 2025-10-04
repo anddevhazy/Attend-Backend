@@ -5,9 +5,10 @@ import {
   login,
   logout,
   verifyEmail,
-  studentExtractData,
+  // studentExtractData,
   updateFcmToken,
   checkJobStatus,
+  activateAccount,
 } from '../controllers/auth.controller.js';
 import { authenticateToken } from '../middleware/auth_middleware.js';
 import { checkDuplicateUser } from '../middleware/checkDuplicateUser_middleware.js';
@@ -58,7 +59,13 @@ router.post('/lecturer-signup', checkDuplicateUser, lecturerSignUp);
 router.post('/login', loginLimiter, login);
 router.post('/logout', authenticateToken, logout);
 router.get('/verify-email', verifyEmail);
-router.post('/student-extract-data', extractDataLimiter, studentExtractData);
+// router.post('/student-extract-data', extractDataLimiter, studentExtractData);
 router.post('/update-fcm-token', authenticateToken, updateFcmToken);
 router.get('/check-job/:jobId', authenticateToken, checkJobStatus);
+router.post(
+  '/activate-account',
+  authenticateToken,
+  extractDataLimiter,
+  activateAccount
+);
 export default router;

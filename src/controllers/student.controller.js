@@ -20,8 +20,12 @@ import { createQueue } from '../queues/redis.js';
 
 export const getDashboard = async (req, res, next) => {
   try {
-    const { chosenCourses } = req.query;
+    const user = await User.findById(req.user.id).select('isActivated');
+    if (!user.isActivated) {
+      throw new BadRequestError('Account must be activated to view dashboard');
+    }
 
+    const { chosenCourses } = req.query;
     let courseFilter = {};
     if (chosenCourses) {
       const idOfChosenCourses = chosenCourses.split(',');
@@ -66,6 +70,10 @@ const isValidBase64Image = (selfie) => {
 
 export const markAttendance = async (req, res, next) => {
   try {
+    const user = await User.findById(req.user.id).select('isActivated');
+    if (!user.isActivated) {
+      throw new BadRequestError('Account must be activated to mark attendance');
+    }
     const { sessionId, deviceId, selfie, latitude, longitude, matricNumber } =
       req.body;
 

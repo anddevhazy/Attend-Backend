@@ -31,7 +31,6 @@ const UserSchema = new mongoose.Schema(
     },
     matricNumber: {
       type: String,
-      required: true,
       uppercase: true,
       trim: true,
     },
@@ -62,6 +61,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    isActivated: { type: Boolean, default: false },
     selectedCourses: [
       {
         type: mongoose.Schema.Types.ObjectId,

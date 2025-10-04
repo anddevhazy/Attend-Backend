@@ -1,39 +1,49 @@
 import { StatusCodes } from 'http-status-codes';
-import { BadRequestError, NotFoundError } from '../errors/index.js';
+import {
+  BadRequestError,
+  NotFoundError,
+  InternalServerError,
+} from '../errors/index.js';
 import formatResponse from '../utils/formatResponse.js';
 import validateRequiredFields from '../utils/validateRequiredFields.js';
 import User from '../models/user.model.js';
 import JobResult from '../models/jobResult.model.js';
 import PendingLecturerUpdate from '../models/pendingLecturerUpdate.model.js';
 import mongoose from 'mongoose';
-import { createQueue } from '../queues/redis.js';
+import { createQueue, redis } from '../queues/redis.js';
 
-export const studentExtractData = async (req, res, next) => {
-  try {
-    const { image } = req.body;
-    if (!image) {
-      throw new BadRequestError('Image is required for data extraction');
-    }
-    const extractDataQueue = createQueue('extract-data');
-    const job = await extractDataQueue.add('extract-data-job', {
-      image,
-      userId: req.user?.id || 'anonymous', // Optional: Track user
-    });
+// export const studentExtractData = async (req, res, next) => {
+//   try {
+//     const { image } = req.body;
+//     if (!image) {
+//       throw new BadRequestError('Image is required for data extraction');
+//     }
+//     const extractDataQueue = createQueue('extract-data');
+//     try {
+//       await redis.ping();
+//       const job = await extractDataQueue.add('extract-data-job', {
+//         image,
+//         userId: req.user?.id || 'anonymous', // Optional: Track user
+//       });
 
-    return formatResponse(
-      res,
-      StatusCodes.ACCEPTED,
-      { jobId: job.id },
-      'Image processing started. Check job status for results'
-    );
-  } catch (error) {
-    next(error);
-  }
-};
+//       return formatResponse(
+//         res,
+//         StatusCodes.ACCEPTED,
+//         { jobId: job.id },
+//         'Image processing started. Check job status for results'
+//       );
+//     } catch (error) {
+//       console.error('Redis queue error:', error);
+//       throw new InternalServerError('Failed to queue image processing');
+//     }
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 
 export const studentSignUp = async (req, res, next) => {
   try {
-    const { email, password, matricNumber, name, programme, level } = req.body;
+    const { email, password } = req.body;
 
     validateRequiredFields(
       ['email', 'password', 'matricNumber', 'name', 'programme', 'level'],
@@ -43,10 +53,6 @@ export const studentSignUp = async (req, res, next) => {
     const user = await User.create({
       email,
       password,
-      matricNumber,
-      name,
-      programme,
-      level,
       role: 'student',
     });
 
@@ -56,7 +62,7 @@ export const studentSignUp = async (req, res, next) => {
     await sendVerificationEmailQueue.add(
       'send-verification-email-student-job',
       {
-        user: { email, name, _id: user._id },
+        user: { email, _id: user._id },
         verificationToken,
       }
     );
@@ -67,9 +73,6 @@ export const studentSignUp = async (req, res, next) => {
       {
         id: user._id,
         email: user.email,
-        matricNumber: user.matricNumber,
-        name: user.name,
-        role: user.role,
       },
       'Student account created. Verification email queued.'
     );
@@ -181,7 +184,9 @@ export const verifyEmail = async (req, res, next) => {
       throw new BadRequestError('Invalid or expired verification token');
     }
 
-    const user = await User.findById(decoded.id).select('isEmailVerified');
+    const user = await User.findById(decoded.id).select(
+      'isEmailVerified isActivated'
+    );
     if (!user) {
       throw new NotFoundError('User not found');
     }
@@ -207,8 +212,8 @@ export const verifyEmail = async (req, res, next) => {
     return formatResponse(
       res,
       StatusCodes.OK,
-      {},
-      'Email verified successfully'
+      { id: user._id, email: user.email, isActivated: user.isActivated },
+      'Email verified successfully. Please activate your account in-app'
     );
   } catch (error) {
     next(error);
@@ -247,6 +252,51 @@ export const checkJobStatus = async (req, res, next) => {
       result: jobResult.result,
       error: jobResult.error,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const activateAccount = async (req, res, next) => {
+  try {
+    const { image } = req.body;
+    if (!image) {
+      throw new BadRequestError('Image is required for account activation');
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    if (!user.isEmailVerified) {
+      throw new BadRequestError('Email must be verified before activation');
+    }
+
+    if (user.isActivated) {
+      throw new BadRequestError('Account already activated');
+    }
+
+    const extractDataQueue = createQueue('extract-data');
+    try {
+      // Check Redis connection before adding the job
+      await redis.ping();
+
+      const job = await extractDataQueue.add('extract-data-job', {
+        image,
+        userId: req.user.id,
+      });
+
+      return formatResponse(
+        res,
+        StatusCodes.ACCEPTED,
+        { jobId: job.id },
+        'Image processing started for account activation. Check job status.'
+      );
+    } catch (error) {
+      console.error('Redis queue error:', error);
+      throw new InternalServerError('Failed to queue image processing');
+    }
   } catch (error) {
     next(error);
   }
