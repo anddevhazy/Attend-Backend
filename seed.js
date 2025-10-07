@@ -19,7 +19,8 @@ mongoose
 const courses = JSON.parse(fs.readFileSync('./src/data/courses.json'));
 // eslint-disable-next-line no-unused-vars
 const locations = JSON.parse(fs.readFileSync('./src/data/locations.json'));
-const students = JSON.parse(fs.readFileSync('./src/data/student.json'));
+// const students = JSON.parse(fs.readFileSync('./src/data/student.json'));
+const lecturers = JSON.parse(fs.readFileSync('./src/data/lecturer.json'));
 
 const seedDatabase = async () => {
   try {
@@ -31,9 +32,9 @@ const seedDatabase = async () => {
     // await Location.insertMany(locations);
     // console.log('Locations seeded!');
 
-    await User.deleteMany();
-    await User.insertMany(students);
-    console.log('Students seeded!');
+    // await User.deleteMany();
+    // await User.insertMany(lecturers);
+    // console.log('Lecturers seeded!');
 
     mongoose.connection.close();
   } catch (err) {

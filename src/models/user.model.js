@@ -6,8 +6,11 @@ const UserSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      // required: [true, 'Name is required'],
       trim: true,
+      required: function () {
+        return this.role === 'student' || this.isEmailVerified;
+      },
     },
     fcmToken: { type: String },
     role: {
@@ -51,7 +54,10 @@ const UserSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function () {
+        return this.role === 'student' || this.isEmailVerified;
+      },
+      // required: [true, 'Password is required'],
     },
     deviceId: {
       type: String,
