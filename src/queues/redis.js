@@ -3,9 +3,12 @@ const { Queue, Worker } = pkg;
 import Redis from 'ioredis';
 import { notifyAdmins } from '../utils/adminNotification.js';
 
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+const redis = new Redis(process.env.REDIS_URL, {
   maxRetriesPerRequest: null,
   enableOfflineQueue: true,
+  tls: process.env.REDIS_URL?.startsWith('rediss://')
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 redis.on('error', (error) => {
