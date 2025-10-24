@@ -13,6 +13,10 @@ import {
 import { notifyAdmins } from '../utils/adminNotification.js';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 const startWorker = async (name, processor) => {
   const worker = createWorker(name, processor, {
     connection: redis,
@@ -298,4 +302,9 @@ const startWorkers = async () => {
   }
 };
 
+console.log('Starting workers initialization....');
+startWorkers().catch((err) => {
+  console.error('FATAL: Failed to initialize workers:', err);
+  process.exit(1);
+});
 startWorkers();

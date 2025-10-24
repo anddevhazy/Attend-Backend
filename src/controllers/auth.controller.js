@@ -138,6 +138,7 @@ export const lecturerSignUp = async (req, res, next) => {
       'Verification email queued. Please verify to update lecturer details.'
     );
   } catch (error) {
+    console.error('LECTURER SIGNUP ERROR:', error);
     next(error);
   }
 };

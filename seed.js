@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+
+const envFile = process.env.NODE_ENV === 'prod' ? '.env.prod' : '.env.local';
+
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 import mongoose from 'mongoose';
 // eslint-disable-next-line no-unused-vars
@@ -32,9 +36,20 @@ const seedDatabase = async () => {
     // await Location.insertMany(locations);
     // console.log('Locations seeded!');
 
-    // await User.deleteMany();
-    // await User.insertMany(lecturers);
-    // console.log('Lecturers seeded!');
+    await User.deleteMany();
+    // Drop the problematic index
+    await User.collection.dropIndex('matricNumber_1').catch(() => {
+      console.log('Index does not exist, skipping...');
+    });
+
+    // Recreate the index with sparse option
+    await User.collection.createIndex(
+      { matricNumber: 1 },
+      { unique: true, sparse: true }
+    );
+
+    await User.insertMany(lecturers);
+    console.log('Lecturers seeded!');
 
     mongoose.connection.close();
   } catch (err) {
