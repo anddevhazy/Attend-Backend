@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "dev:local": "docker compose up -d && npm run dev",
     "start": "node src/index.js",
     "seed": "node -r dotenv/config seed.js",
     "lint": "eslint ."

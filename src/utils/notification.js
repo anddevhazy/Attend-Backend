@@ -1,6 +1,13 @@
 import admin from 'firebase-admin';
 import User from '../models/user.model.js';
 import { InternalServerError } from '../errors/index.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url'; // Utility for ES Modules paths
+
+// Get the directory name for correct path resolution
+const _filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(_filename); // <-- Use the standard double underscore (and it is used below)
 
 // ✅ Secure Firebase Initialization (works locally & on Heroku)
 let serviceAccount;
@@ -10,10 +17,13 @@ try {
     // Parse credentials from environment variable
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   } else {
-    // Fallback for local development
-    serviceAccount = await import('../../firebase-service-account.json', {
-      assert: { type: 'json' },
-    }).then((module) => module.default);
+    // Fallback for local development using fs.readFileSync
+    const serviceAccountPath = path.resolve(
+      __dirname, // <-- The variable is now correctly used here.
+      '../../firebase-service-account.json'
+    );
+    const serviceAccountJson = fs.readFileSync(serviceAccountPath, 'utf8');
+    serviceAccount = JSON.parse(serviceAccountJson);
   }
 
   if (!admin.apps.length) {

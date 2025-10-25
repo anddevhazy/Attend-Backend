@@ -36,10 +36,14 @@ export const createQueue = (name) =>
     },
   });
 
-export const createWorker = (name, processor) =>
+
+
+export const createWorker = (name, processor, options = {}) =>
   new Worker(name, processor, {
     connection: redis,
     autorun: false,
+    ...options, 
   });
+
 
 export default redis;

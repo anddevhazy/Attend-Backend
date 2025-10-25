@@ -33,278 +33,64 @@ const startWorker = async (name, processor) => {
   console.log(`Worker ${name} started`);
 };
 
+console.log('Starting workers initialization...');
+
 const startWorkers = async () => {
-  const maxRetries = 5;
+  const MAX_RETRIES = 5;
   let attempt = 1;
 
-  while (attempt <= maxRetries) {
+  while (attempt <= MAX_RETRIES) {
     try {
+      // Test Redis connection
       await redis.ping();
+      console.log('Redis is connected and responsive');
 
-      await startWorker('extract-data', async (job) => {
-        const { image, userId } = job.data;
-        try {
-          const extractedData = await extractStudentDataFromImage(image);
-          if (
-            !extractedData.matricNumber ||
-            !extractedData.name ||
-            !extractedData.programme ||
-            !extractedData.level
-          ) {
-            await JobResult.create({
-              jobId: job.id,
-              userId,
-              type: 'extract-data',
-              status: 'failed',
-              error: 'Incomplete data extracted from image',
-            });
-            await sendNotification(
-              userId,
-              'Failed to activate account: Incomplete data extracted.'
-            );
-            throw new BadRequestError('Incomplete data extracted from image');
-          }
+      // Helper to start a worker
+      const start = async (name, processor) => {
+        const worker = createWorker(name, processor, {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        });
 
-          const user = await User.findByIdAndUpdate(
-            userId,
-            {
-              matricNumber: extractedData.matricNumber,
-              name: extractedData.name,
-              programme: extractedData.programme,
-              level: extractedData.level,
-              isActivated: true,
-            },
-            { new: true }
-          );
+        worker.on('failed', (job, err) => {
+          console.error(`Job ${job?.id} failed:`, err.message);
+        });
 
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'extract-data',
-            result: extractedData,
-            status: 'completed',
-          });
+        worker.on('error', (err) => {
+          console.error(`Worker ${name} error:`, err);
+        });
 
-          await sendNotification(userId, 'Account activated successfully.');
-          return extractedData;
-        } catch (error) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'extract-data',
-            status: 'failed',
-            error: error.message,
-          });
-          await sendNotification(
-            userId,
-            'Failed to activate account due to an error.'
-          );
-          throw error;
-        }
-      });
+        await worker.run(); // This starts it!
+        console.log(`Worker "${name}" is running`);
+      };
 
-      await startWorker('send-verification-email', async (job) => {
+      // Start only the email worker for now (add others later)
+      await start('send-verification-email', async (job) => {
         const { user, verificationToken } = job.data;
-        try {
-          await sendVerificationEmail(user, verificationToken);
-          console.log(`Verification email sent to ${user.email}`);
-        } catch (error) {
-          console.error(`Error sending email to ${user.email}:`, error);
-          throw error;
-        }
+        await sendVerificationEmail(user, verificationToken);
+        console.log(`Email sent to ${user.email}`);
       });
 
-      await startWorker('mark-attendance', async (job) => {
-        const {
-          sessionId,
-          deviceId,
-          selfie,
-          latitude,
-          longitude,
-          matricNumber,
-          userId,
-        } = job.data;
-
-        const session = await Session.findById(sessionId)
-          .select('status endTime attendees locationId courseId')
-          .populate('locationId', 'corners')
-          .populate('courseId', 'name')
-          .exec();
-
-        if (!session) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error: 'Session not found',
-          });
-          throw new NotFoundError('Session not found');
-        }
-
-        if (session.status !== 'active' || new Date() > session.endTime) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error: 'Session has ended or is not active',
-          });
-          throw new BadRequestError('Session has ended or is not active');
-        }
-
-        const hasAlreadyMarked = session.attendees.some(
-          (attendee) => attendee.matricNumber === matricNumber
-        );
-
-        if (hasAlreadyMarked) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error:
-              'Attendance already marked for this session with this matric number',
-          });
-          throw new BadRequestError(
-            'Attendance already marked for this session with this matric number'
-          );
-        }
-
-        const isWithinGeofence = checkGeofence(
-          latitude,
-          longitude,
-          session.locationId.corners
-        );
-        if (!isWithinGeofence) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error: 'You are not within the required location for this class',
-          });
-          throw new BadRequestError(
-            'You are not within the required location for this class'
-          );
-        }
-
-        const deviceCheck = await handleDeviceValidation(
-          matricNumber,
-          deviceId
-        );
-        if (!deviceCheck.success) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error: deviceCheck.message,
-            result: {
-              requiresOverride: true,
-              conflictInfo: deviceCheck.conflictInfo,
-            },
-          });
-          throw new BadRequestError(deviceCheck.message, {
-            requiresOverride: true,
-            conflictInfo: deviceCheck.conflictInfo,
-          });
-        }
-
-        const user = await User.findOne({ matricNumber })
-          .select('_id name level')
-          .lean();
-        if (!user) {
-          await JobResult.create({
-            jobId: job.id,
-            userId,
-            type: 'attendance',
-            status: 'failed',
-            error: 'Student not found with this matric number',
-          });
-          throw new NotFoundError('Student not found with this matric number');
-        }
-
-        session.attendees.push({
-          studentId: user._id,
-          matricNumber,
-          selfie,
-          deviceIdUsed: deviceId,
-          timestamp: new Date(),
-        });
-
-        await session.save();
-
-        const result = {
-          sessionName: session.courseId.name,
-          timestamp: new Date(),
-          attendeeCount: session.attendees.length,
-        };
-
-        await JobResult.create({
-          jobId: job.id,
-          userId,
-          type: 'attendance',
-          status: 'completed',
-          result,
-        });
-
-        await sendNotification(
-          userId,
-          `Attendance marked successfully for ${session.courseId.name}`
-        );
-
-        const channel = `attendance:${sessionId}`;
-        await redis.publish(
-          channel,
-          JSON.stringify({
-            matricNumber,
-            name: user.name,
-            level: user.level,
-            timestamp: new Date(),
-          })
-        );
-
-        return result;
-      });
-
-      await startWorker('notification', async (job) => {
-        const { userId, message } = job.data;
-        try {
-          await sendNotification(userId, message);
-          console.log(`Notification sent to user ${userId}: ${message}`);
-        } catch (error) {
-          console.error(`Error sending notification to user ${userId}:`, error);
-          throw error;
-        }
-      });
-
-      console.log('Workers initialized');
+      console.log('All workers started successfully!');
       return;
-    } catch (error) {
-      console.error(
-        `Failed to start workers (attempt ${attempt}/${maxRetries}):`,
-        error
-      );
-      await notifyAdmins(
-        'Worker Startup Failure',
-        `Failed to start workers: ${error.message}`
-      );
-      if (attempt === maxRetries) {
-        console.error('Max retries reached. Exiting process.');
+
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed:`, err.message);
+      if (attempt === MAX_RETRIES) {
+        console.error('GIVING UP: Workers failed to start');
         process.exit(1);
       }
-      const delay = Math.pow(2, attempt) * 1000;
+      const delay = 2000 * attempt;
       console.log(`Retrying in ${delay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await new Promise(r => setTimeout(r, delay));
       attempt++;
     }
   }
 };
 
-console.log('Starting workers initialization....');
-startWorkers().catch((err) => {
-  console.error('FATAL: Failed to initialize workers:', err);
+startWorkers().catch(err => {
+  console.error('FATAL: Could not start workers:', err);
   process.exit(1);
 });
-startWorkers();
+ 
+

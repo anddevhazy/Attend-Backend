@@ -16,6 +16,7 @@ import {
   loginLimiter,
   extractDataLimiter,
 } from '../middleware/rate_limit_middleware.js';
+import { createQueue } from '../queues/redis.js';
 
 const router = express.Router();
 
@@ -37,4 +38,16 @@ router.post(
   extractDataLimiter,
   activateAccount
 );
+router.get('/test-email', async (req, res) => {
+  try {
+    const queue = createQueue('send-verification-email');
+    await queue.add('test', {
+      user: { email: process.env.EMAIL_USER, name: 'Test User' },
+      verificationToken: 'fake-token-123',
+    });
+    res.json({ ok: true, msg: 'job queued' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 export default router;
