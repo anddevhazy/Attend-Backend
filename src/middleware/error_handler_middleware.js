@@ -1,4 +1,4 @@
-import { CustomApiError } from '../errors';
+import { CustomApiError } from '../errors/index.js';
 import { StatusCodes } from 'http-status-codes';
 
 // eslint-disable-next-line no-unused-vars
