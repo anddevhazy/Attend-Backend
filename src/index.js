@@ -1,6 +1,5 @@
 import { app } from './app.js';
 import connectDB from './db/connect.js';
-import './queues/workers.js';
 
 const PORT = 8000;
 
