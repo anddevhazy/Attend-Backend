@@ -1,8 +1,6 @@
 import express from 'express';
-import studentRoutes from './routes/student.routes.js';
-import lecturerRoutes from './routes/lecturer.routes.js';
 import authRoutes from './routes/auth.routes.js';
-import errorHandlerMiddleware from './middleware/error-handler.js';
+import errorHandlerMiddleware from './middleware/error_handler_middleware.js';
 import helmet from 'helmet';
 import cors from 'cors';
 import mongoSanitize from 'express-mongo-sanitize';
@@ -18,8 +16,6 @@ app.get('/', (req, res) => {
   res.send('ATTEND API');
 });
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/student', studentRoutes);
-app.use('/api/v1/lecturer', lecturerRoutes);
 
 app.use(errorHandlerMiddleware);
 
