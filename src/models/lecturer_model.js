@@ -8,7 +8,6 @@ const LecturerSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    fcmToken: { type: String },
     role: {
       type: String,
       enum: {
@@ -39,6 +38,13 @@ const LecturerSchema = new mongoose.Schema(
     isSeeded: {
       type: Boolean,
       default: false,
+    },
+    emailVerificationToken: {
+      /*this token is being saved because token expiry is an existing concept, so this field always keeps 
+      the most recent token that is allowed for verifying this email, we wouldn't want someone using a 
+      token that's old and supposed to be expired to verify.*/
+      type: String,
+      default: null,
     },
     password: {
       type: String,

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon --legacy-watch src/index.js",
     "seed": "node -r dotenv/config seed.js",
     "lint": "eslint ."
   },
