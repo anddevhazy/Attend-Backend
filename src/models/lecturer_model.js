@@ -7,9 +7,6 @@ const LecturerSchema = new mongoose.Schema(
     name: {
       type: String,
       trim: true,
-      required: function () {
-        return this.role === 'student' || this.isEmailVerified;
-      },
     },
     fcmToken: { type: String },
     role: {
@@ -39,9 +36,16 @@ const LecturerSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    isSeeded: {
+      type: Boolean,
+      default: false,
+    },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function () {
+        // Only require password if lecturer is signing up (not preloaded)
+        return this.isNew && !this.isSeeded;
+      },
     },
   },
   { timestamps: true }

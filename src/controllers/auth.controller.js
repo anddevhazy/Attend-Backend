@@ -6,22 +6,26 @@ import validateRequiredFieldsUtil from '../utils/global/validate_required_fields
 import Lecturer from '../models/lecturer_model.js';
 
 export const lecturerSignUp = async (req, res, next) => {
+  console.log('LecturerSignUp controller called!')
   try {
     const { email, password, name, department, faculty } = req.body;
 
     validateRequiredFieldsUtil(
-      ['email', 'password', 'name', 'department', 'faculty'],
+      ['email', 'password', 'name', 'department', 'college'],
       req.body
     );
 
     const lecturer = await Lecturer.findOne({ email, role: 'lecturer' });
+
     if (!lecturer) {
-      throw new NotFoundError('Lecturer not found');
+      throw new NotFoundError('Lecturer not employed');
     }
+        console.log(`Found Lecturer with emil: ${lecturer.email}`)
+
 
     return formatResponseUtil(res, StatusCodes.OK, 'Lecturer Found');
   } catch (error) {
-    console.error('LECTURER Not Found:', error);
+    console.error('LECTURER SignUp Error', error);
     next(error);
   }
 };
