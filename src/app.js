@@ -1,6 +1,6 @@
 import express from 'express';
 import authRoutes from './routes/auth.routes.js';
-import studentRoutes from './routes/student_route.js';
+import studentRoutes from './routes/student_routes.js';
 import errorHandlerMiddleware from './middleware/error_handler_middleware.js';
 import helmet from 'helmet';
 import cors from 'cors';
