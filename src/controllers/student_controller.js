@@ -203,12 +203,11 @@ export const confirmActivation = async (req, res, next) => {
       throw new UnauthenticatedError('Authentication required');
     }
 
-    const { name, matricNumber, department, level, college, imageUrl } =
-      req.body;
+    const { name, matricNumber, department, level } = req.body;
 
     // Validate required fields
     validateRequiredFieldsUtil(
-      ['name', 'matricNumber', 'department', 'level', 'imageUrl'],
+      ['name', 'matricNumber', 'department', 'level'],
       req.body
     );
 
@@ -225,21 +224,19 @@ export const confirmActivation = async (req, res, next) => {
 
     // Check if matric number is already in use
     const existingStudent = await Student.findOne({
-      matricNumber: matricNumber.toUpperCase(),
+      matricNumber: matricNumber,
       _id: { $ne: student._id },
     });
 
     if (existingStudent) {
-      throw new BadRequestError('Matric number already exists');
+      throw new BadRequestError('This Matric Number has been activated');
     }
 
     // Update student information
     student.name = name;
-    student.matricNumber = matricNumber.toUpperCase();
+    student.matricNumber = matricNumber;
     student.department = department;
     student.level = level;
-    student.college = college;
-    student.selfie = imageUrl; // Store the course form image
     student.isActivated = true;
 
     await student.save();
@@ -256,7 +253,6 @@ export const confirmActivation = async (req, res, next) => {
           matricNumber: student.matricNumber,
           department: student.department,
           level: student.level,
-          college: student.college,
           isActivated: student.isActivated,
         },
       },

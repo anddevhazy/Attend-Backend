@@ -46,7 +46,7 @@ router.use(authMiddleware);
 
 router.get('/fetch-courses', fetchCourses);
 router.post('/select-courses', selectCourses);
-router.post('/confirm', confirmActivation);
+router.post('/confirm-activation', confirmActivation);
 router.post(
   '/result-upload-and-extract',
   // eslint-disable-next-line no-undef
