@@ -42,7 +42,7 @@ export const lecturerSignUp = async (req, res, next) => {
     Personal Note: The purpose of an email verification token is to tie something that expires with the verification link
     if not , any link can actually be sent for verification, but if it doesn't have a token, expiry feature wouldn't be possible.
     */
-    const emailVerificationToken = lecturer.generateToken();
+    const emailVerificationToken = lecturer.generateEmailVerificationToken();
 
     // lecturer.emailVerificationToken = emailVerificationToken;
     await lecturer.save();
@@ -135,7 +135,7 @@ export const studentSignUp = async (req, res, next) => {
       role: 'student',
     });
 
-    const emailVerificationToken = student.generateToken();
+    const emailVerificationToken = student.generateEmailVerificationToken();
 
     // Send verification email
     const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-student-email?token=${emailVerificationToken}`;
@@ -244,7 +244,7 @@ export const lecturerLogin = async (req, res, next) => {
     }
 
     // Generate JWT token for session
-    const token = lecturer.generateToken();
+    const token = lecturer.generateLoginToken();
 
     // Return success response with token
     return formatResponseUtil(
@@ -294,7 +294,7 @@ export const studentLogin = async (req, res, next) => {
     }
 
     // Generate JWT token for session
-    const token = student.generateToken();
+    const token = student.generateLoginToken();
 
     // Return success response with token
     return formatResponseUtil(

@@ -88,12 +88,17 @@ StudentSchema.pre('save', async function (next) {
   next();
 });
 
-StudentSchema.methods.generateToken = function () {
+StudentSchema.methods.generateEmailVerificationToken = function () {
   return jwt.sign({ id: this._id, email: this.email }, process.env.JWT_SECRET, {
     expiresIn: '1h',
   });
 };
 
+StudentSchema.methods.generateLoginToken = function () {
+  return jwt.sign({ id: this._id, email: this.email }, process.env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+};
 StudentSchema.methods.comparePassword = async function (userPassword) {
   return await bcrypt.compare(userPassword, this.password);
 };
