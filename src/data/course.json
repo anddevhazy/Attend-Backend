@@ -1,0 +1,148 @@
+[
+  {
+    "code": "ELE 102",
+    "title": "INTRODUCTION TO ELECTRICAL & ELECTRONIC ENGINEERING",
+    "units": 1
+  },
+  { "code": "ELE 201", "title": "APPLIED ELECTRICITY 1", "units": 2 },
+  {
+    "code": "ELE 203",
+    "title": "FUNDAMENTALS OF INFORMATION & COMMUNICATION TECHNOLOGY (ICT)",
+    "units": 2
+  },
+  { "code": "ELE 202", "title": "APPLIED ELECTRICITY 2", "units": 2 },
+  {
+    "code": "ELE 291",
+    "title": "APPLIED ELECTRICITY LABORATORY 1",
+    "units": 1
+  },
+  {
+    "code": "ELE 292",
+    "title": "APPLIED ELECTRICITY LABORATORY 2",
+    "units": 1
+  },
+  {
+    "code": "ELE 200",
+    "title": "STUDENT'S WORK EXPERIENCE PROGRAMME (SWEP)",
+    "units": 3
+  },
+  { "code": "ELE 297", "title": "SWEP SEMINAR & REPORT", "units": 2 },
+  { "code": "ELE 301", "title": "ELECTRIC CIRCUIT THEORY 1", "units": 3 },
+  { "code": "ELE 302", "title": "ELECTRIC CIRCUIT THEORY 2", "units": 3 },
+  { "code": "ELE 303", "title": "ELECTROMAGNETIC THEORY 1", "units": 3 },
+  { "code": "ELE 304", "title": "ELECTROMAGNETIC THEORY 2", "units": 3 },
+  { "code": "ELE 305", "title": "ELECTRICAL MACHINES 1", "units": 3 },
+  { "code": "ELE 306", "title": "ELECTRICAL MACHINES 2", "units": 3 },
+  { "code": "ELE 307", "title": "ELECTRONIC CIRCUITS 1", "units": 3 },
+  { "code": "ELE 308", "title": "ELECTRONIC CIRCUITS 2", "units": 3 },
+  { "code": "ELE 309", "title": "PHYSICAL ELECTRONICS", "units": 3 },
+  {
+    "code": "ELE 311",
+    "title": "NUMERICAL METHODS IN ELECTRICAL AND ELECTRONIC ENGINEERING 1",
+    "units": 2
+  },
+  {
+    "code": "ELE 312",
+    "title": "NUMERICAL METHODS IN ELECTRICAL AND ELECTRONICS ENGINEERING 2",
+    "units": 2
+  },
+  { "code": "ELE 342", "title": "ENGINEERING MATHEMATICS 2", "units": 3 },
+  { "code": "ELE 350", "title": "ENGINEERING ENTREPRENEURSHIP", "units": 2 },
+  {
+    "code": "ELE 391",
+    "title": "CIRCUITS AND ELECTRONIC LABORATORY 1",
+    "units": 2
+  },
+  {
+    "code": "ELE 392",
+    "title": "CIRCUITS AND ELECTRONIC LABORATORY 2",
+    "units": 2
+  },
+  { "code": "ELE 393", "title": "ELECTRICAL MACHINE LABORATORY 1", "units": 1 },
+  { "code": "ELE 394", "title": "ELECTRICAL MACHINE LABORATORY 2", "units": 1 },
+  { "code": "ELE 397", "title": "SIWES 1 SEMINAR & REPORT", "units": 2 },
+  { "code": "ELE 401", "title": "ELECTRIC POWER PRINCIPLES", "units": 3 },
+  { "code": "ELE 403", "title": "SERVOMECHANISM AND CONTROL", "units": 3 },
+  { "code": "ELE 405", "title": "COMMUNICATION PRINCIPLES", "units": 3 },
+  {
+    "code": "ELE 407",
+    "title": "MEASUREMENTS AND INSTRUMENTATION",
+    "units": 3
+  },
+  { "code": "ELE 409", "title": "POWER ELECTRONICS", "units": 3 },
+  {
+    "code": "ELE 491",
+    "title": "INSTRUMENTATION AND CONTROL LABORATORY",
+    "units": 2
+  },
+  { "code": "ELE 493", "title": "TELECOMMUNICATION LABORATORY", "units": 1 },
+  { "code": "ELE 497", "title": "SIWES 2 SEMINAR & REPORT", "units": 2 },
+  { "code": "ELE 501", "title": "CONTROL ENGINEERING 2", "units": 3 },
+  {
+    "code": "ELE 502",
+    "title": "RELIABILITY AND MAINTAINABILITY OF ELECTRICAL & ELECTRONIC SYSTEMS",
+    "units": 2
+  },
+  { "code": "ELE 503", "title": "DIGITAL SIGNAL PROCESSING", "units": 3 },
+  {
+    "code": "ELE 504",
+    "title": "MICROCOMPUTER HARDWARE AND SOFTWARE TECHNIQUE",
+    "units": 3
+  },
+  { "code": "ELE 505", "title": "POWER ELECTRONICS AND DEVICES", "units": 3 },
+  {
+    "code": "ELE 506",
+    "title": "ELECTRICAL SERVICES AND ENERGY UTILIZATION",
+    "units": 3
+  },
+  { "code": "ELE 507", "title": "COMMUNICATIONS SYSTEMS", "units": 3 },
+  { "code": "ELE 508", "title": "TELECOMMUNICATION ENGINEERING", "units": 3 },
+  { "code": "ELE 509", "title": "DIGITAL COMMUNICATION SYSTEM", "units": 3 },
+  {
+    "code": "ELE 510",
+    "title": "TELECOMMUNICATION SERVICES DESIGN",
+    "units": 3
+  },
+  { "code": "ELE 511", "title": "POWER SYSTEMS ENGINEERING", "units": 3 },
+  {
+    "code": "ELE 512",
+    "title": "POWER SYSTEM COMMUNICATION AND CONTROL",
+    "units": 3
+  },
+  {
+    "code": "ELE 513",
+    "title": "SWITCHGEAR AND HIGH VOLTAGE ENGINEERING",
+    "units": 3
+  },
+  {
+    "code": "ELE 514",
+    "title": "ELECTROMECHANICAL DEVICES DESIGN",
+    "units": 3
+  },
+  { "code": "ELE 515", "title": "CONTROL ENGINEERING 2", "units": 3 },
+  { "code": "ELE 516", "title": "CONTROL ENGINEERING 2", "units": 3 },
+  { "code": "ELE 517", "title": "INSTRUMENTATION ENGINEERING", "units": 3 },
+  { "code": "ELE 518", "title": "DYNAMIC SYSTEM SIMULATION", "units": 3 },
+  { "code": "ELE 519", "title": "ELECTRONIC MATERIALS TECHNOLOGY", "units": 3 },
+  {
+    "code": "ELE 520",
+    "title": "VLSI DEVICE PHYSICS AND TECHNOLOGY",
+    "units": 3
+  },
+  { "code": "ELE 521", "title": "OPTICAL ELECTRONICS", "units": 3 },
+  {
+    "code": "ELE 522",
+    "title": "PHOTONIC DEVICES AND APPLICATIONS",
+    "units": 3
+  },
+  { "code": "ELE 523", "title": "INDUSTRIAL ELECTRONIC DESIGN", "units": 2 },
+  { "code": "ELE 525", "title": "ADVANCED CIRCUIT TECHNIQUES", "units": 2 },
+  {
+    "code": "ELE 526",
+    "title": "ADVANCED COMPUTER PROGRAMMING & CAD",
+    "units": 3
+  },
+  { "code": "ELE 597", "title": "SEMINAR 1", "units": 1 },
+  { "code": "ELE 598", "title": "SEMINAR 2", "units": 1 },
+  { "code": "ELE 599", "title": "PROJECT", "units": 4 }
+]

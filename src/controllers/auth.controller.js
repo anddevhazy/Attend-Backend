@@ -1,5 +1,9 @@
 import { StatusCodes } from 'http-status-codes';
-import { BadRequestError, NotFoundError } from '../errors/index.js';
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthenticatedError,
+} from '../errors/index.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
 import Lecturer from '../models/lecturer_model.js';
@@ -211,6 +215,103 @@ export const verifyStudentEmail = async (req, res, next) => {
           '<h2>❌ Verification link has expired. Please request a new one.</h2>'
         );
     }
+    next(error);
+  }
+};
+
+export const lecturerLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate required fields
+    validateRequiredFieldsUtil(['email', 'password'], req.body);
+
+    // Find lecturer by email
+    const lecturer = await Lecturer.findOne({ email, role: 'lecturer' });
+    if (!lecturer) {
+      throw new UnauthenticatedError("Lecturer with this email doesn't exist ");
+    }
+
+    // Check if email is verified
+    if (!lecturer.isEmailVerified) {
+      throw new BadRequestError("Your email isn't verified yet");
+    }
+
+    // Verify password
+    const isPasswordCorrect = await lecturer.comparePassword(password);
+    if (!isPasswordCorrect) {
+      throw new UnauthenticatedError('Invalid  Password');
+    }
+
+    // Generate JWT token for session
+    const token = lecturer.generateToken();
+
+    // Return success response with token
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        token,
+        lecturer: {
+          id: lecturer._id,
+          email: lecturer.email,
+          name: lecturer.name,
+          role: lecturer.role,
+          department: lecturer.department,
+          college: lecturer.college,
+        },
+      },
+      'Lecturer Login successful'
+    );
+  } catch (error) {
+    console.error('LECTURER Login Error:', error);
+    next(error);
+  }
+};
+
+export const studentLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate required fields
+    validateRequiredFieldsUtil(['email', 'password'], req.body);
+
+    // Find student by email
+    const student = await Student.findOne({ email, role: 'student' });
+    if (!student) {
+      throw new UnauthenticatedError(" Student with this email doesn't exist");
+    }
+
+    // Check if email is verified
+    if (!student.isEmailVerified) {
+      throw new BadRequestError("Your email isn't verified yet");
+    }
+
+    // Verify password
+    const isPasswordCorrect = await student.comparePassword(password);
+    if (!isPasswordCorrect) {
+      throw new UnauthenticatedError('Invalid Password');
+    }
+
+    // Generate JWT token for session
+    const token = student.generateToken();
+
+    // Return success response with token
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        token,
+        student: {
+          id: student._id,
+          email: student.email,
+          role: student.role,
+        },
+      },
+      'Login successful'
+    );
+  } catch (error) {
+    console.error('STUDENT Login Error:', error);
     next(error);
   }
 };
