@@ -9,10 +9,9 @@ import Student from '../models/student_model.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
 import extractCourseFormDataUtil from '../utils/student/details_extraction_util.js';
-import {
-  uploadCourseFormsToCloudinaryUtil,
-  uploadResultsToCloudinaryUtil,
-} from '../utils/student/cloudinary_upload_util.js';
+import extractResultDataUtil from '../utils/student/details_extraction_util.js';
+import uploadCourseFormsToCloudinaryUtil from '../utils/student/cloudinary_upload_util.js';
+import uploadResultsToCloudinaryUtil from '../utils/student/cloudinary_upload_util.js';
 
 export const fetchCourses = async (req, res, next) => {
   try {
@@ -126,10 +125,9 @@ export const uploadCourseFormAndExtractData = async (req, res, next) => {
       {
         extractedData: {
           name: extractedData.name,
-          matricNumber: extractedData.matricNumber,
-          department: extractedData.department,
+          matricNumber: extractedData.id,
+          department: extractedData.programme,
           level: extractedData.level,
-          college: extractedData.college,
         },
         imageUrl: uploadResult.secure_url,
         message:
@@ -152,7 +150,7 @@ export const uploadResultAndExtractData = async (req, res, next) => {
 
     // Check if file was uploaded
     if (!req.file) {
-      throw new BadRequestError('Course form or Result image is required');
+      throw new BadRequestError('Result image is required');
     }
 
     // Find student
@@ -167,13 +165,13 @@ export const uploadResultAndExtractData = async (req, res, next) => {
     }
 
     // Upload image to cloudinary
-    const uploadResult = await uploadToCloudinary(
+    const uploadResult = await uploadResultsToCloudinaryUtil(
       req.file.path,
-      'course-forms'
+      'results'
     );
 
     // Extract data from course form using OCR
-    const extractedData = await extractCourseFormData(uploadResult.secure_url);
+    const extractedData = await extractResultDataUtil(uploadResult.secure_url);
 
     // Return extracted data for confirmation
     return formatResponseUtil(
@@ -182,19 +180,18 @@ export const uploadResultAndExtractData = async (req, res, next) => {
       {
         extractedData: {
           name: extractedData.name,
-          matricNumber: extractedData.matricNumber,
-          department: extractedData.department,
+          matricNumber: extractedData.id,
+          department: extractedData.programme,
           level: extractedData.level,
-          college: extractedData.college,
         },
         imageUrl: uploadResult.secure_url,
         message:
           'Please verify the extracted information and confirm to activate your account',
       },
-      'Course form data extracted successfully'
+      'Result data extracted successfully'
     );
   } catch (error) {
-    console.error('Course Form Upload Error:', error);
+    console.error('Result Upload Error:', error);
     next(error);
   }
 };

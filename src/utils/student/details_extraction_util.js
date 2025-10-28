@@ -6,7 +6,7 @@ import { BadRequestError } from '../../errors/index.js';
  * @param {string} imageUrl - URL or path to the course form image
  * @returns {Promise<Object>} Extracted student data
  */
-const extractCourseFormDataUtil = async (imageUrl) => {
+export const extractCourseFormDataUtil = async (imageUrl) => {
   try {
     console.log('🔍 Starting OCR extraction for:', imageUrl);
 
@@ -20,10 +20,10 @@ const extractCourseFormDataUtil = async (imageUrl) => {
     console.log('📄 Extracted Text:', text);
 
     // Parse the extracted text to find student information
-    const extractedData = parseStudentInfo(text);
+    const extractedData = parseStudentInfoFromCourseForm(text);
 
     // Validate that we extracted necessary information
-    if (!extractedData.matricNumber) {
+    if (!extractedData.id) {
       throw new BadRequestError(
         'Could not extract matric number from course form'
       );
@@ -43,7 +43,7 @@ const extractCourseFormDataUtil = async (imageUrl) => {
  * @param {string} text - Raw OCR text
  * @returns {Object} Parsed student data
  */
-const parseStudentInfo = (text) => {
+const parseStudentInfoFromCourseForm = (text) => {
   const lines = text
     .split('\n')
     .map((line) => line.trim())
@@ -51,26 +51,30 @@ const parseStudentInfo = (text) => {
 
   const data = {
     name: null,
-    matricNumber: null,
-    department: null,
+    id: null,
+    programme: null,
     level: null,
-    college: null,
   };
 
   // Regular expressions for matching patterns
-  const matricRegex =
-    /\b([A-Z]{3}\/\d{2,4}\/\d{3,4}|\d{2,4}\/\d{4,6}|[A-Z]{2,3}\d{6,8})\b/i;
-  const levelRegex = /\b(100L|200L|300L|400L|500L|600L)\b/i;
-  const nameRegex =
-    /(?:name|student name|full name)[:\s]*([A-Z][a-z]+(?: [A-Z][a-z]+)+)/i;
-  const deptRegex = /(?:department|dept)[:\s]([A-Z][a-z]+(?: [A-Z][a-z]+))/i;
-  const collegeRegex = /(?:college|faculty)[:\s]([A-Z][a-z]+(?: [A-Z][a-z]+))/i;
+
+  // Matches ID: 12345678  (8 digits after "ID:")
+  const idRegex = /ID[:\s]*([0-9]{8})/i;
+
+  // Matches Level: 100L
+  const levelRegex = /Level[:\s]*(\d{3}L)/i;
+
+  // Matches Name: John Doe
+  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?: [A-Z][a-z]+)+)/i;
+
+  // Matches Programme: Computer Science
+  const programmeRegex = /Programme[:\s]([A-Z][a-z]+(?: [A-Z][a-z]+))/i;
 
   // Extract matric number
   for (const line of lines) {
-    const matricMatch = line.match(matricRegex);
-    if (matricMatch && !data.matricNumber) {
-      data.matricNumber = matricMatch[1].toUpperCase();
+    const idMatch = line.match(idRegex);
+    if (idMatch && !data.id) {
+      data.id = idMatch[1];
     }
 
     // Extract level
@@ -86,27 +90,9 @@ const parseStudentInfo = (text) => {
     }
 
     // Extract department
-    const deptMatch = line.match(deptRegex);
-    if (deptMatch && !data.department) {
-      data.department = deptMatch[1].trim();
-    }
-
-    // Extract college
-    const collegeMatch = line.match(collegeRegex);
-    if (collegeMatch && !data.college) {
-      data.college = collegeMatch[1].trim();
-    }
-  }
-
-  // Fallback: Try to find name in first few lines if not found
-  if (!data.name) {
-    for (let i = 0; i < Math.min(5, lines.length); i++) {
-      const line = lines[i];
-      // Look for lines with multiple capitalized words
-      if (/^[A-Z][a-z]+(?: [A-Z][a-z]+){1,3}$/.test(line) && line.length > 5) {
-        data.name = line;
-        break;
-      }
+    const programmeMatch = line.match(programmeRegex);
+    if (programmeMatch && !data.programme) {
+      data.programme = programmeMatch[1].trim();
     }
   }
 
@@ -114,4 +100,98 @@ const parseStudentInfo = (text) => {
   return data;
 };
 
-export default extractCourseFormDataUtil;
+/**
+ * Extract student information from Result image using OCR
+ * @param {string} imageUrl - URL or path to the Result image
+ * @returns {Promise<Object>} Extracted student data
+ */
+export const extractResultDataUtil = async (imageUrl) => {
+  try {
+    console.log('🔍 Starting OCR extraction for:', imageUrl);
+
+    // Perform OCR on the image
+    const {
+      data: { text },
+    } = await Tesseract.recognize(imageUrl, 'eng', {
+      logger: (info) => console.log(info),
+    });
+
+    console.log('📄 Extracted Text:', text);
+
+    // Parse the extracted text to find student information
+    const extractedData = parseStudentInfoFromResult(text);
+
+    // Validate that we extracted necessary information
+    if (!extractedData.id) {
+      throw new BadRequestError('Could not extract matric number from Result');
+    }
+
+    return extractedData;
+  } catch (error) {
+    console.error('OCR Extraction Error:', error);
+    throw new BadRequestError(
+      'Failed to extract data from Result. Please ensure the image is clear and try again.'
+    );
+  }
+};
+
+/**
+ * Parse student information from OCR text
+ * @param {string} text - Raw OCR text
+ * @returns {Object} Parsed student data
+ */
+const parseStudentInfoFromResult = (text) => {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line);
+
+  const data = {
+    name: null,
+    id: null,
+    programme: null,
+    level: null,
+  };
+
+  // Regular expressions for matching patterns
+  // Matches Matric. No.: 12345678  (8 digits after "Matric. No.:")
+  const idRegex = /Matric\.?\s*No\.?:\s*(\d{8})/i;
+
+  // Matches Level: 100L
+  const levelRegex = /Level[:\s]*(\d{3}L)/i;
+
+  // Matches Name: John Doe
+  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?: [A-Z][a-z]+)+)/i;
+
+  // Matches Programme: Computer Science
+  const programmeRegex = /Programme[:\s]([A-Z][a-z]+(?: [A-Z][a-z]+))/i;
+
+  // Extract matric number
+  for (const line of lines) {
+    const idMatch = line.match(idRegex);
+    if (idMatch && !data.id) {
+      data.id = idMatch[1];
+    }
+
+    // Extract level
+    const levelMatch = line.match(levelRegex);
+    if (levelMatch && !data.level) {
+      data.level = levelMatch[1].toUpperCase();
+    }
+
+    // Extract name
+    const nameMatch = line.match(nameRegex);
+    if (nameMatch && !data.name) {
+      data.name = nameMatch[1].trim();
+    }
+
+    // Extract department
+    const programmeMatch = line.match(programmeRegex);
+    if (programmeMatch && !data.programme) {
+      data.programme = programmeMatch[1].trim();
+    }
+  }
+
+  console.log('✅ Parsed Data From Result:', data);
+  return data;
+};
