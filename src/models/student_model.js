@@ -6,15 +6,12 @@ const StudentSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
       trim: true,
     },
     role: {
       type: String,
-      enum: {
-        values: ['student'],
-        message: 'Role must be student',
-      },
+      enum: ['student'],
+      default: 'studnet',
       required: [true, 'Role is required'],
     },
     email: {
@@ -110,4 +107,4 @@ StudentSchema.statics.verifyEmailVerificationToken = function (token) {
   }
 };
 
-export default mongoose.model('User', StudentSchema);
+export default mongoose.model('Student', StudentSchema);

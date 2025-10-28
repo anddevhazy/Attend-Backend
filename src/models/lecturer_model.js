@@ -10,10 +10,8 @@ const LecturerSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: {
-        values: ['lecturer'],
-        message: 'Role must be lecturer',
-      },
+      enum: ['lecturer'],
+      default: 'lecturer',
       required: [true, 'Role is required'],
     },
     email: {
