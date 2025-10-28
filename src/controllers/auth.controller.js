@@ -3,7 +3,7 @@ import { BadRequestError, NotFoundError } from '../errors/index.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
 import Lecturer from '../models/lecturer_model.js';
-import jwt from 'jsonwebtoken';
+import Student from '../models/student_model.js';
 import sendEmailVerificationLink from '../utils/auth/send_email_verification_link_util.js';
 
 export const lecturerSignUp = async (req, res, next) => {
@@ -38,17 +38,12 @@ export const lecturerSignUp = async (req, res, next) => {
     Personal Note: The purpose of an email verification token is to tie something that expires with the verification link
     if not , any link can actually be sent for verification, but if it doesn't have a token, expiry feature wouldn't be possible.
     */
-    const emailVerificationToken = jwt.sign(
-      { id: lecturer._id, email: lecturer.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+    const emailVerificationToken = lecturer.generateToken;
 
     // lecturer.emailVerificationToken = emailVerificationToken;
     await lecturer.save();
 
     // Send verification email
-    // 🔗 Dummy verification link (for testing email delivery)
     const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-email?token=${emailVerificationToken}`;
     await sendEmailVerificationLink({
       to: lecturer.email,
@@ -82,14 +77,14 @@ export const lecturerSignUp = async (req, res, next) => {
   }
 };
 
-export const verifyEmail = async (req, res, next) => {
+export const verifyLecturerEmail = async (req, res, next) => {
   try {
     const { token } = req.query;
 
     if (!token) throw new BadRequestError('Missing Email Verification token');
 
     // Decode token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = Lecturer.verifyEmailVerificationToken(token);
     const { id, email } = decoded;
 
     // Find lecturer and verify
@@ -104,6 +99,102 @@ export const verifyEmail = async (req, res, next) => {
 
     lecturer.isEmailVerified = true;
     await lecturer.save();
+
+    // Simple success page (HTML for browser)
+    res
+      .status(StatusCodes.OK)
+      .send(
+        '<h2>✅ Your email has been verified. You can now log in to the app.</h2>'
+      );
+  } catch (error) {
+    console.error('Email verification error:', error);
+    if (error.name === 'TokenExpiredError') {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send(
+          '<h2>❌ Verification link has expired. Please request a new one.</h2>'
+        );
+    }
+    next(error);
+  }
+};
+
+export const studentSignUp = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    validateRequiredFieldsUtil(['email', 'password'], req.body);
+
+    const student = await Student.create({
+      email,
+      password,
+      role: 'student',
+    });
+
+    const emailVerificationToken = student.generateToken;
+
+    // Send verification email
+    const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-email?token=${emailVerificationToken}`;
+    await sendEmailVerificationLink({
+      to: student.email,
+      subject: 'Verify Your Email',
+      html: `
+        <p>Hello,</p>
+        <p>Welcome to Attend! Please verify your email by clicking the link below:</p>
+        <a href="${verificationLink}" target="_blank" 
+           style="display:inline-block;background:#007bff;color:#fff;
+                  padding:10px 15px;text-decoration:none;border-radius:5px;">
+          Verify Email
+        </a>
+        <p>If the button doesn't work, copy and paste this link into your browser:</p>
+        <p>${verificationLink}</p>
+        <hr />
+        <p style="font-size:0.9em;color:#777;">
+          If you didn't request this verification, please ignore this email or do not click the link.
+        </p>
+      `,
+    });
+
+    console.log(
+      `✅ Controller has created ${email}'s student document and sent Verification email to them`
+    );
+    return formatResponseUtil(
+      res,
+      StatusCodes.CREATED,
+      {
+        id: student._id,
+        email: student.email,
+      },
+      'Student account created & Verification Email Sent'
+    );
+  } catch (error) {
+    console.error('STUDENT SignUp Error', error);
+    next(error);
+  }
+};
+
+export const verifyStudentEmail = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) throw new BadRequestError('Missing Email Verification token');
+
+    // Decode token
+    const decoded = Student.verifyEmailVerificationToken(token);
+    const { id, email } = decoded;
+
+    // Find lecturer and verify
+    const student = await Student.findOne({ _id: id, email });
+    if (!student) throw new BadRequestError('Invalid Email Verification Link');
+
+    if (student.isEmailVerified) {
+      return res
+        .status(StatusCodes.OK)
+        .send('<h2>Email already verified ✅</h2>');
+    }
+
+    student.isEmailVerified = true;
+    await student.save();
 
     // Simple success page (HTML for browser)
     res

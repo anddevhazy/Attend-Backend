@@ -66,18 +66,16 @@ LecturerSchema.pre('save', async function (next) {
 });
 
 LecturerSchema.methods.generateToken = function () {
-  return jwt.sign(
-    { id: this._id, role: this.role, email: this.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '30d' }
-  );
+  return jwt.sign({ id: this._id, email: this.email }, process.env.JWT_SECRET, {
+    expiresIn: '1h',
+  });
 };
 
 LecturerSchema.methods.comparePassword = async function (userPassword) {
   return await bcrypt.compare(userPassword, this.password);
 };
 
-LecturerSchema.statics.verifyEmailToken = function (token) {
+LecturerSchema.statics.verifyEmailVerificationToken = function (token) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
     // eslint-disable-next-line no-unused-vars
