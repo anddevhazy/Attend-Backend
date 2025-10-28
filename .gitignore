@@ -2,3 +2,4 @@
 .env*
 firebase-service-account.json
 docker-compose.yml
+uploads/

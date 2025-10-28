@@ -1,9 +1,18 @@
 import { StatusCodes } from 'http-status-codes';
 import Course from '../models/course_model.js';
-import { BadRequestError, NotFoundError } from '../errors/index.js';
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthenticatedError,
+} from '../errors/index.js';
 import Student from '../models/student_model.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
+import extractCourseFormDataUtil from '../utils/student/details_extraction_util.js';
+import {
+  uploadCourseFormsToCloudinaryUtil,
+  uploadResultsToCloudinaryUtil,
+} from '../utils/student/cloudinary_upload_util.js';
 
 export const fetchCourses = async (req, res, next) => {
   try {
@@ -72,6 +81,192 @@ export const selectCourses = async (req, res, next) => {
     );
   } catch (error) {
     console.error('SELECT COURSES Error:', error);
+    next(error);
+  }
+};
+
+export const uploadCourseFormAndExtractData = async (req, res, next) => {
+  try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      throw new UnauthenticatedError('Student Must be Logged In');
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      throw new BadRequestError('Course form image is required');
+    }
+
+    // Find student
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    // Check if already activated
+    if (student.isActivated) {
+      throw new BadRequestError('Account is already activated');
+    }
+
+    // Upload image to cloudinary
+    const uploadResult = await uploadCourseFormsToCloudinaryUtil(
+      req.file.path,
+      'course-forms'
+    );
+
+    // Extract data from course form using OCR
+    const extractedData = await extractCourseFormDataUtil(
+      uploadResult.secure_url
+    );
+
+    // Return extracted data for confirmation
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        extractedData: {
+          name: extractedData.name,
+          matricNumber: extractedData.matricNumber,
+          department: extractedData.department,
+          level: extractedData.level,
+          college: extractedData.college,
+        },
+        imageUrl: uploadResult.secure_url,
+        message:
+          'Please verify the extracted information and confirm to activate your account',
+      },
+      'Course form data extracted successfully'
+    );
+  } catch (error) {
+    console.error('Course Form Upload Error:', error);
+    next(error);
+  }
+};
+
+export const uploadResultAndExtractData = async (req, res, next) => {
+  try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      throw new UnauthenticatedError('Student Must be Logged In');
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      throw new BadRequestError('Course form or Result image is required');
+    }
+
+    // Find student
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    // Check if already activated
+    if (student.isActivated) {
+      throw new BadRequestError('Account is already activated');
+    }
+
+    // Upload image to cloudinary
+    const uploadResult = await uploadToCloudinary(
+      req.file.path,
+      'course-forms'
+    );
+
+    // Extract data from course form using OCR
+    const extractedData = await extractCourseFormData(uploadResult.secure_url);
+
+    // Return extracted data for confirmation
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        extractedData: {
+          name: extractedData.name,
+          matricNumber: extractedData.matricNumber,
+          department: extractedData.department,
+          level: extractedData.level,
+          college: extractedData.college,
+        },
+        imageUrl: uploadResult.secure_url,
+        message:
+          'Please verify the extracted information and confirm to activate your account',
+      },
+      'Course form data extracted successfully'
+    );
+  } catch (error) {
+    console.error('Course Form Upload Error:', error);
+    next(error);
+  }
+};
+
+export const confirmActivation = async (req, res, next) => {
+  try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      throw new UnauthenticatedError('Authentication required');
+    }
+
+    const { name, matricNumber, department, level, college, imageUrl } =
+      req.body;
+
+    // Validate required fields
+    validateRequiredFieldsUtil(
+      ['name', 'matricNumber', 'department', 'level', 'imageUrl'],
+      req.body
+    );
+
+    // Find student
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    // Check if already activated
+    if (student.isActivated) {
+      throw new BadRequestError('Account is already activated');
+    }
+
+    // Check if matric number is already in use
+    const existingStudent = await Student.findOne({
+      matricNumber: matricNumber.toUpperCase(),
+      _id: { $ne: student._id },
+    });
+
+    if (existingStudent) {
+      throw new BadRequestError('Matric number already exists');
+    }
+
+    // Update student information
+    student.name = name;
+    student.matricNumber = matricNumber.toUpperCase();
+    student.department = department;
+    student.level = level;
+    student.college = college;
+    student.selfie = imageUrl; // Store the course form image
+    student.isActivated = true;
+
+    await student.save();
+
+    // Return success response
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        student: {
+          id: student._id,
+          email: student.email,
+          name: student.name,
+          matricNumber: student.matricNumber,
+          department: student.department,
+          level: student.level,
+          college: student.college,
+          isActivated: student.isActivated,
+        },
+      },
+      'Account activated successfully'
+    );
+  } catch (error) {
+    console.error('Account Activation Confirmation Error:', error);
     next(error);
   }
 };
