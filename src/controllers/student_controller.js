@@ -8,10 +8,10 @@ import {
 import Student from '../models/student_model.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
-import extractCourseFormDataUtil from '../utils/student/details_extraction_util.js';
-import extractResultDataUtil from '../utils/student/details_extraction_util.js';
-import uploadCourseFormsToCloudinaryUtil from '../utils/student/cloudinary_upload_util.js';
-import uploadResultsToCloudinaryUtil from '../utils/student/cloudinary_upload_util.js';
+import {extractCourseFormDataUtil} from '../utils/student/details_extraction_util.js';
+import {extractResultDataUtil} from '../utils/student/details_extraction_util.js';
+import {uploadCourseFormsToCloudinaryUtil} from '../utils/student/cloudinary_upload_util.js';
+import {uploadResultsToCloudinaryUtil} from '../utils/student/cloudinary_upload_util.js';
 
 export const fetchCourses = async (req, res, next) => {
   try {

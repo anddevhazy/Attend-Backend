@@ -12,17 +12,6 @@ import authMiddleware from '../middleware/auth_middleware.js';
 
 const router = express.Router();
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/course-forms/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `course-form-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
-
 // File filter to accept only images
 const fileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -34,8 +23,38 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
-  storage,
+// Configure multer for COURSE FORMS
+const courseFormStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/course-forms/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `course-form-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const courseFormUpload = multer({
+  storage: courseFormStorage,
+  fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
+
+// Configure multer for RESULTS
+const resultStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/results/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `result-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const resultUpload = multer({
+  storage: resultStorage,
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -49,14 +68,12 @@ router.post('/select-courses', selectCourses);
 router.post('/confirm-activation', confirmActivation);
 router.post(
   '/result-upload-and-extract',
-  // eslint-disable-next-line no-undef
-  upload.single(result),
+  resultUpload.single('result'),
   uploadResultAndExtractData
 );
 router.post(
   '/course-form-upload-and-extract',
-  // eslint-disable-next-line no-undef
-  upload.single(courseForm),
+  courseFormUpload.single('courseForm'),
   uploadCourseFormAndExtractData
 );
 
