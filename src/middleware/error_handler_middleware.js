@@ -6,7 +6,7 @@ const errorHandlerMiddleware = (err, req, res, next) => {
   console.error('😭 ERROR HANDLER CAUGHT:', err);
 
   if (err instanceof CustomApiError) {
-    return res.status(err.statuscode).json({ msg: err.message });
+    return res.status(err.statusCode).json({ msg: err.message });
   }
 
   return res

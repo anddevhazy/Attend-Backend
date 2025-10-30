@@ -263,3 +263,62 @@ export const confirmActivation = async (req, res, next) => {
     next(error);
   }
 };
+
+// // Controller to fetch and return the user's dashboard data
+// export const getDashboard = async (req, res, next) => {
+//   try {
+//     // 1️⃣ Verify user activation before proceeding
+//     const user = await User.findById(req.user.id).select('isActivated');
+//     if (!user.isActivated) {
+//       // Prevent access to dashboard if user’s account is not yet activated
+//       throw new BadRequestError('Account must be activated to view dashboard');
+//     }
+
+//     // 2️⃣ Build course filter based on query params (if provided)
+//     const { chosenCourses } = req.query;
+//     let courseFilter = {};
+//     if (chosenCourses) {
+//       // Convert comma-separated course IDs (e.g., "abc,def") into an array
+//       const idOfChosenCourses = chosenCourses.split(',');
+//       // Filter sessions only by the chosen course IDs
+//       courseFilter = { courseId: { $in: idOfChosenCourses } };
+//     }
+
+//     // 3️⃣ Query for all currently active sessions
+//     const activeSessions = await Session.find({
+//       ...courseFilter,       // Apply dynamic course filter
+//       status: 'active',      // Only sessions marked as active
+//       endTime: { $gt: new Date() }, // Exclude expired sessions
+//     })
+//       // Only select the relevant fields to minimize payload
+//       .select('courseId lecturerId locationId attendees endTime')
+//       // Populate references for readability on the frontend
+//       .populate('courseId', 'name')
+//       .populate('lecturerId', 'name')
+//       .populate('locationId', 'name')
+//       .lean(); // Return plain JS objects (not Mongoose docs) for faster performance
+
+//     // 4️⃣ Transform raw session data into a clean, frontend-friendly format
+//     const sessionsData = activeSessions.map((session) => ({
+//       id: session._id,
+//       courseName: session.courseId?.name,         // Course name
+//       lecturerName: session.lecturerId?.name,     // Lecturer name
+//       locationName: session.locationId?.name,     // Location name
+//       timeRemaining: Math.max(
+//         0,
+//         Math.floor((session.endTime - new Date()) / (1000 * 60)) // Minutes left until session ends
+//       ),
+//       attendeeCount: session.attendees.length,    // Number of students currently marked present
+//     }));
+
+//     // 5️⃣ Send standardized success response
+//     return formatResponse(res, StatusCodes.OK, {
+//       activeSessions: sessionsData,
+//     });
+
+//   } catch (error) {
+//     // 6️⃣ Forward any error to the global error handler middleware
+//     next(error);
+//   }
+// };
+

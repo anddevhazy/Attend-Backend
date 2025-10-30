@@ -1,6 +1,7 @@
 import express from 'express';
 import authRoutes from './routes/auth.routes.js';
 import studentRoutes from './routes/student_routes.js';
+import lecturerRoutes from './routes/lecturer_routes.js';
 import errorHandlerMiddleware from './middleware/error_handler_middleware.js';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -24,6 +25,13 @@ uploadDirs.forEach((dir) => {
   }
 });
 
+// Create temp folder for OCR image downloads
+const tempDir = path.join(__dirname, '..', 'temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+  console.log('Created temp directory for OCR');
+}
+
 app.use(express.json());
 app.use(helmet());
 app.use(cors());
@@ -34,6 +42,7 @@ app.get('/', (req, res) => {
 });
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/student', studentRoutes);
+app.use('/api/v1/lecturer', lecturerRoutes);
 
 app.use(errorHandlerMiddleware);
 
