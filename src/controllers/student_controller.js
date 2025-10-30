@@ -15,6 +15,11 @@ import { extractCourseFormDataUtil } from '../utils/student/details_extraction_u
 import { extractResultDataUtil } from '../utils/student/details_extraction_util.js';
 import { uploadCourseFormsToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
 import { uploadResultsToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
+import {
+  checkGeofenceUtil,
+  handleDeviceValidationUtil,
+} from '../utils/student/mark_attendance_util.js';
+import { uploadSelfieToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
 
 export const fetchCourses = async (req, res, next) => {
   try {
@@ -323,6 +328,208 @@ export const getLiveClasses = async (req, res, next) => {
       activeSessions: sessionsData,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// Controller to handle marking attendance for a class session
+export const markAttendance = async (req, res, next) => {
+  try {
+    // Extract relevant data from the request body
+    const { sessionId, deviceId, latitude, longitude } = req.body;
+
+    // convert to numbers
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      throw new BadRequestError('Latitude and longitude must be valid numbers');
+    }
+
+    // Ensure all required fields are provided
+    validateRequiredFieldsUtil(
+      ['sessionId', 'latitude', 'longitude'],
+      req.body
+    );
+
+    const userId = req.user.id;
+    const student = await Student.findById(userId).select(
+      'matricNumber deviceId selfie'
+    );
+
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    const matricNumber = student.matricNumber;
+
+    // ✅ Require deviceId only if student already has one registered
+    if (student.deviceId && !deviceId) {
+      throw new BadRequestError(
+        'Device ID is required for subsequent attendance'
+      );
+    }
+
+    // Fetch the session and populate location and course details
+    const session = await Session.findById(sessionId)
+      .select('status endTime attendees locationId courseId')
+      .populate('locationId', 'corners')
+      .populate('courseId', 'name')
+      .exec();
+
+    // If session not found, throw a 404 error
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    // Ensure session is still active and within valid time
+    if (new Date() > session.endTime) {
+      throw new BadRequestError('Session has ended');
+    }
+
+    // Check if the student has already marked attendance
+    const hasAlreadyMarked = session.attendees.some(
+      (attendee) => attendee.matricNumber === matricNumber
+    );
+
+    if (hasAlreadyMarked) {
+      throw new BadRequestError('Attendance already marked for this session');
+    }
+
+    // Verify if student's current location is within the class geofence
+    const isWithinGeofence = checkGeofenceUtil(
+      lat,
+      lon,
+      session.locationId.corners
+    );
+
+    if (!isWithinGeofence) {
+      throw new BadRequestError(
+        'You are not within the required location for this class'
+      );
+    }
+
+    // Validate device
+    const deviceCheck = await handleDeviceValidationUtil(
+      matricNumber,
+      deviceId
+    );
+
+    // Handle different device validation scenarios
+    if (!deviceCheck.success) {
+      if (deviceCheck.requiresSelfie) {
+        // Student needs to upload selfie to register device
+        return formatResponseUtil(
+          res,
+          StatusCodes.ACCEPTED, // 202
+          {
+            requiresSelfie: true,
+            deviceId: deviceId,
+            message: deviceCheck.message,
+          },
+          'Selfie required for device registration'
+        );
+      } else if (deviceCheck.conflictInfo) {
+        // Device is owned by another student
+        throw new BadRequestError(deviceCheck.message, {
+          requiresOverride: true,
+          conflictInfo: deviceCheck.conflictInfo,
+        });
+      } else {
+        // Other device validation errors
+        throw new BadRequestError(deviceCheck.message);
+      }
+    }
+
+    // Record attendance
+    session.attendees.push({
+      studentId: student._id,
+      matricNumber,
+      deviceIdUsed: deviceId,
+      timestamp: new Date(),
+    });
+
+    await session.save();
+
+    // Respond with success
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        sessionName: session.courseId.name,
+        timestamp: new Date(),
+        attendeeCount: session.attendees.length,
+      },
+      'Attendance marked successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+export const uploadSelfieAndRegisterDevice = async (req, res, next) => {
+  try {
+    const { deviceId } = req.body;
+
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      throw new UnauthenticatedError('Student must be logged in');
+    }
+
+    // Validate required fields
+    validateRequiredFieldsUtil(['deviceId'], req.body);
+
+    // Check if selfie file was uploaded
+    if (!req.file) {
+      throw new BadRequestError('Selfie image is required');
+    }
+
+    // Find student
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    // Check if device is already tied to another student
+    const deviceOwner = await Student.findOne({
+      deviceId,
+      _id: { $ne: req.user.id },
+    }).select('matricNumber name');
+
+    if (deviceOwner) {
+      throw new BadRequestError(
+        'This device is already registered to another student',
+        {
+          conflictInfo: {
+            matricNumber: deviceOwner.matricNumber,
+            name: deviceOwner.name,
+          },
+        }
+      );
+    }
+
+    // Upload selfie to Cloudinary
+    const uploadResult = await uploadSelfieToCloudinaryUtil(
+      req.file.path,
+      'student-selfies'
+    );
+
+    // Update student with device ID and selfie
+    student.deviceId = deviceId;
+    student.selfie = uploadResult.secure_url;
+    await student.save();
+
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        deviceId: student.deviceId,
+        selfie: student.selfie,
+        message: 'Device registered successfully with your selfie',
+      },
+      'Selfie uploaded and device registered successfully'
+    );
+  } catch (error) {
+    console.error('Selfie Upload Error:', error);
     next(error);
   }
 };

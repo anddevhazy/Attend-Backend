@@ -250,12 +250,6 @@ export const extractResultDataUtil = async (imageUrl) => {
   }
 };
 
-/**
- * Parse student information from Result OCR text
- * @param {string} text - Raw OCR text
- * @returns {Object} Parsed student data
- */
-// Similarly update parseStudentInfoFromResult
 const parseStudentInfoFromResult = (text) => {
   const lines = text
     .split('\n')

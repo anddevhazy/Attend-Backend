@@ -16,7 +16,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Create uploads directories if they don't exist
-const uploadDirs = ['uploads/course-forms', 'uploads/results'];
+const uploadDirs = [
+  'uploads/course-forms',
+  'uploads/results',
+  'uploads/selfies',
+];
 uploadDirs.forEach((dir) => {
   const fullPath = path.join(__dirname, '..', dir);
   if (!fs.existsSync(fullPath)) {

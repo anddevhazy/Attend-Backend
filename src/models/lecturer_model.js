@@ -71,7 +71,7 @@ LecturerSchema.methods.generateEmailVerificationToken = function () {
 
 LecturerSchema.methods.generateLoginToken = function () {
   return jwt.sign({ id: this._id, email: this.email }, process.env.JWT_SECRET, {
-    expiresIn: '1h',
+    expiresIn: '7d',
   });
 };
 

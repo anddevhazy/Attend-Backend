@@ -8,6 +8,8 @@ import {
   uploadResultAndExtractData,
   confirmActivation,
   getLiveClasses,
+  uploadSelfieAndRegisterDevice,
+  markAttendance,
 } from '../controllers/student_controller.js';
 import authMiddleware from '../middleware/auth_middleware.js';
 
@@ -62,6 +64,35 @@ const resultUpload = multer({
   },
 });
 
+// Configure multer for selfie uploads
+const selfieStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/selfies');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, 'selfie-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const selfieUpload = multer({
+  storage: selfieStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(
+      path.extname(file.originalname).toLowerCase()
+    );
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
+    }
+  },
+});
+
 router.use(authMiddleware);
 
 router.get('/fetch-courses', fetchCourses);
@@ -78,5 +109,11 @@ router.post(
   uploadCourseFormAndExtractData
 );
 router.get('/get-live-classes', getLiveClasses);
+router.post('/mark-attendance', markAttendance);
+router.post(
+  '/upload-selfie-and-register-device',
+  selfieUpload.single('selfie'),
+  uploadSelfieAndRegisterDevice
+);
 
 export default router;
