@@ -9,7 +9,7 @@ const SessionSchema = new mongoose.Schema(
     },
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Lecturer',
       required: [true, 'Lecturer ID is required'],
     },
     locationId: {
@@ -29,7 +29,7 @@ const SessionSchema = new mongoose.Schema(
       {
         studentId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'Student',
           required: [true, 'Student ID is required'],
         },
         selfie: {
@@ -50,15 +50,6 @@ const SessionSchema = new mongoose.Schema(
         },
       },
     ],
-
-    status: {
-      type: String,
-      enum: {
-        values: ['active', 'ended'],
-        message: 'Status must be either active or ended',
-      },
-      default: 'active',
-    },
   },
   { timestamps: true }
 );

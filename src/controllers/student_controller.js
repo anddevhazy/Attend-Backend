@@ -6,12 +6,15 @@ import {
   UnauthenticatedError,
 } from '../errors/index.js';
 import Student from '../models/student_model.js';
+import Session from '../models/attendance_session_model.js';
+// eslint-disable-next-line no-unused-vars
+import Location from '../models/location_model.js';
 import formatResponseUtil from '../utils/global/format_response_util.js';
 import validateRequiredFieldsUtil from '../utils/global/validate_required_fields_util.js';
-import {extractCourseFormDataUtil} from '../utils/student/details_extraction_util.js';
-import {extractResultDataUtil} from '../utils/student/details_extraction_util.js';
-import {uploadCourseFormsToCloudinaryUtil} from '../utils/student/cloudinary_upload_util.js';
-import {uploadResultsToCloudinaryUtil} from '../utils/student/cloudinary_upload_util.js';
+import { extractCourseFormDataUtil } from '../utils/student/details_extraction_util.js';
+import { extractResultDataUtil } from '../utils/student/details_extraction_util.js';
+import { uploadCourseFormsToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
+import { uploadResultsToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
 
 export const fetchCourses = async (req, res, next) => {
   try {
@@ -264,61 +267,62 @@ export const confirmActivation = async (req, res, next) => {
   }
 };
 
-// // Controller to fetch and return the user's dashboard data
-// export const getDashboard = async (req, res, next) => {
-//   try {
-//     // 1️⃣ Verify user activation before proceeding
-//     const user = await User.findById(req.user.id).select('isActivated');
-//     if (!user.isActivated) {
-//       // Prevent access to dashboard if user’s account is not yet activated
-//       throw new BadRequestError('Account must be activated to view dashboard');
-//     }
+// Controller to fetch and return the user's dashboard data
+export const getLiveClasses = async (req, res, next) => {
+  try {
+    // 1️⃣ Fetch student's activation + selected courses
+    const student = await Student.findById(req.user.id).select(
+      'isActivated selectedCourses'
+    );
 
-//     // 2️⃣ Build course filter based on query params (if provided)
-//     const { chosenCourses } = req.query;
-//     let courseFilter = {};
-//     if (chosenCourses) {
-//       // Convert comma-separated course IDs (e.g., "abc,def") into an array
-//       const idOfChosenCourses = chosenCourses.split(',');
-//       // Filter sessions only by the chosen course IDs
-//       courseFilter = { courseId: { $in: idOfChosenCourses } };
-//     }
+    if (!student) {
+      throw new BadRequestError('Student record not found.');
+    }
 
-//     // 3️⃣ Query for all currently active sessions
-//     const activeSessions = await Session.find({
-//       ...courseFilter,       // Apply dynamic course filter
-//       status: 'active',      // Only sessions marked as active
-//       endTime: { $gt: new Date() }, // Exclude expired sessions
-//     })
-//       // Only select the relevant fields to minimize payload
-//       .select('courseId lecturerId locationId attendees endTime')
-//       // Populate references for readability on the frontend
-//       .populate('courseId', 'name')
-//       .populate('lecturerId', 'name')
-//       .populate('locationId', 'name')
-//       .lean(); // Return plain JS objects (not Mongoose docs) for faster performance
+    if (!student.isActivated) {
+      throw new BadRequestError(
+        'Account must be activated to view Live Classes.'
+      );
+    }
 
-//     // 4️⃣ Transform raw session data into a clean, frontend-friendly format
-//     const sessionsData = activeSessions.map((session) => ({
-//       id: session._id,
-//       courseName: session.courseId?.name,         // Course name
-//       lecturerName: session.lecturerId?.name,     // Lecturer name
-//       locationName: session.locationId?.name,     // Location name
-//       timeRemaining: Math.max(
-//         0,
-//         Math.floor((session.endTime - new Date()) / (1000 * 60)) // Minutes left until session ends
-//       ),
-//       attendeeCount: session.attendees.length,    // Number of students currently marked present
-//     }));
+    if (!student.selectedCourses || student.selectedCourses.length === 0) {
+      throw new BadRequestError(
+        ' This student hasnt enrolled for any courses.'
+      );
+    }
 
-//     // 5️⃣ Send standardized success response
-//     return formatResponse(res, StatusCodes.OK, {
-//       activeSessions: sessionsData,
-//     });
+    // 2️⃣ Build course filter using student's selectedCourses
+    const idOfChosenCourses = student.selectedCourses.map(String);
 
-//   } catch (error) {
-//     // 6️⃣ Forward any error to the global error handler middleware
-//     next(error);
-//   }
-// };
+    // 3️⃣ Query for all currently active sessions (not yet expired)
+    const activeSessions = await Session.find({
+      courseId: { $in: idOfChosenCourses },
+      endTime: { $gt: new Date() }, // Exclude expired sessions
+    })
+      .select('courseId lecturerId locationId attendees endTime')
+      .populate('courseId', 'name')
+      .populate('lecturerId', 'name')
+      .populate('locationId', 'name')
+      .lean();
 
+    // 4️⃣ Transform raw session data into a frontend-friendly format
+    const sessionsData = activeSessions.map((session) => ({
+      id: session._id,
+      courseName: session.courseId?.name,
+      lecturerName: session.lecturerId?.name,
+      locationName: session.locationId?.name,
+      timeRemaining: Math.max(
+        0,
+        Math.floor((session.endTime - new Date()) / (1000 * 60))
+      ),
+      attendeeCount: session.attendees.length,
+    }));
+
+    // 5️⃣ Send standardized success response
+    return formatResponseUtil(res, StatusCodes.OK, {
+      activeSessions: sessionsData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

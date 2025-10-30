@@ -1,10 +1,50 @@
 import Tesseract from 'tesseract.js';
 import { BadRequestError } from '../../errors/index.js';
-import https from 'https';
-import http from 'http';
+import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Helper: Download image from Cloudinary using axios
+const downloadImage = async (url, dest) => {
+  try {
+    console.log('⬇️ Downloading from:', url);
+
+    const response = await axios({
+      method: 'GET',
+      url: url,
+      responseType: 'stream',
+      timeout: 30000, // 30 seconds
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AttendApp/1.0)',
+      },
+    });
+
+    const writer = fs.createWriteStream(dest);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+      writer.on('finish', () => {
+        console.log('✅ Download complete:', dest);
+        resolve(dest);
+      });
+      writer.on('error', (err) => {
+        console.error('❌ Write error:', err);
+        fs.unlink(dest, () => {});
+        reject(err);
+      });
+    });
+  } catch (error) {
+    console.error('❌ Download error:', error.message);
+    if (fs.existsSync(dest)) {
+      fs.unlinkSync(dest);
+    }
+    throw new Error(`Failed to download image: ${error.message}`);
+  }
+};
 
 /**
  * Extract student information from course form image using OCR
@@ -12,22 +52,43 @@ import { fileURLToPath } from 'url';
  * @returns {Promise<Object>} Extracted student data
  */
 export const extractCourseFormDataUtil = async (imageUrl) => {
+  let tempFilePath = null;
+
   try {
     console.log('🔍 Starting OCR extraction for:', imageUrl);
 
-    // Perform OCR on the image
+    // Ensure temp directory exists
+    const tempDir = path.join(__dirname, '../../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Create unique temp file name
+    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    tempFilePath = path.join(tempDir, `courseform-${uniqueSuffix}.jpg`);
+
+    // 1️⃣ Download the image locally first
+    await downloadImage(imageUrl, tempFilePath);
+    console.log('📥 Image downloaded for OCR:', tempFilePath);
+
+    // Verify file was created
+    if (!fs.existsSync(tempFilePath)) {
+      throw new Error('Downloaded file does not exist');
+    }
+
+    // 2️⃣ Perform OCR on the local file
     const {
       data: { text },
-    } = await Tesseract.recognize(imageUrl, 'eng', {
+    } = await Tesseract.recognize(tempFilePath, 'eng', {
       logger: (info) => console.log(info),
     });
 
     console.log('📄 Extracted Text:', text);
 
-    // Parse the extracted text to find student information
+    // 3️⃣ Parse the text to extract student info
     const extractedData = parseStudentInfoFromCourseForm(text);
 
-    // Validate that we extracted necessary information
+    // 4️⃣ Validate results
     if (!extractedData.id) {
       throw new BadRequestError(
         'Could not extract matric number from course form'
@@ -36,15 +97,25 @@ export const extractCourseFormDataUtil = async (imageUrl) => {
 
     return extractedData;
   } catch (error) {
-    console.error('OCR Extraction Error:', error);
+    console.error('❌ OCR Extraction Error:', error);
     throw new BadRequestError(
       'Failed to extract data from course form. Please ensure the image is clear and try again.'
     );
+  } finally {
+    // 5️⃣ Always delete temp file
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+        console.log('🧹 Cleaned up temp file:', tempFilePath);
+      } catch (err) {
+        console.warn('⚠️ Failed to delete temp file:', err.message);
+      }
+    }
   }
 };
 
 /**
- * Parse student information from OCR text
+ * Parse student information from OCR text with improved pattern matching
  * @param {string} text - Raw OCR text
  * @returns {Object} Parsed student data
  */
@@ -61,47 +132,56 @@ const parseStudentInfoFromCourseForm = (text) => {
     level: null,
   };
 
-  // Regular expressions for matching patterns
+  // Improved regex patterns to handle OCR errors
+  // Handle common OCR misreadings: 'ID' as '1D', 'lD', 'iD', etc.
+  const idRegex = /(?:ID|1D|iD|lD)[:\s]*([0-9]{8})/i;
 
-  // Matches ID: 12345678  (8 digits after "ID:")
-  const idRegex = /ID[:\s]*([0-9]{8})/i;
+  // More flexible level pattern
+  const levelRegex = /Level[:\s]*([0-9]{3}L?)/i;
 
-  // Matches Level: 100L
-  const levelRegex = /Level[:\s]*(\d{3}L)/i;
+  // More flexible name pattern - captures 2+ word names
+  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i;
 
-  // Matches Name: John Doe
-  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?: [A-Z][a-z]+)+)/i;
+  // More flexible programme pattern
+  const programmeRegex = /Programme[:\s]*([A-Za-z&\s]+?)(?:\s{2,}|$)/i;
 
-  // Matches Programme: Computer Science
-  const programmeRegex = /Programme[:\s]([A-Z][a-z]+(?: [A-Z][a-z]+))/i;
-
-  // Extract matric number
+  // Extract data
   for (const line of lines) {
+    // Try to extract ID/Matric number
     const idMatch = line.match(idRegex);
     if (idMatch && !data.id) {
       data.id = idMatch[1];
+      console.log('✅ Matched ID:', idMatch[1]);
     }
 
-    // Extract level
+    // Try to extract level
     const levelMatch = line.match(levelRegex);
     if (levelMatch && !data.level) {
-      data.level = levelMatch[1].toUpperCase();
+      let level = levelMatch[1].toUpperCase();
+      // Ensure it ends with 'L'
+      if (!level.endsWith('L')) {
+        level += 'L';
+      }
+      data.level = level;
+      console.log('✅ Matched Level:', level);
     }
 
-    // Extract name
+    // Try to extract name
     const nameMatch = line.match(nameRegex);
     if (nameMatch && !data.name) {
       data.name = nameMatch[1].trim();
+      console.log('✅ Matched Name:', nameMatch[1]);
     }
 
-    // Extract department
+    // Try to extract programme
     const programmeMatch = line.match(programmeRegex);
     if (programmeMatch && !data.programme) {
       data.programme = programmeMatch[1].trim();
+      console.log('✅ Matched Programme:', programmeMatch[1]);
     }
   }
 
-  console.log('✅ Parsed Data:', data);
+  console.log('✅ Final Parsed Data:', data);
   return data;
 };
 
@@ -110,68 +190,40 @@ const parseStudentInfoFromCourseForm = (text) => {
  * @param {string} imageUrl - URL or path to the Result image
  * @returns {Promise<Object>} Extracted student data
  */
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Helper: Download image from Cloudinary to local temp file
-const downloadImage = (url, dest) => {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(dest);
-
-    client
-      .get(url, { timeout: 10000 }, (response) => {
-        if (response.statusCode !== 200) {
-          file.close();
-          fs.unlink(dest, () => {});
-          return reject(
-            new Error(`Failed to download image: ${response.statusCode}`)
-          );
-        }
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve(dest);
-        });
-      })
-      .on('error', (err) => {
-        fs.unlink(dest, () => {});
-        reject(err);
-      })
-      .on('timeout', () => {
-        fs.unlink(dest, () => {});
-        reject(new Error('Download timeout'));
-      });
-  });
-};
-
 export const extractResultDataUtil = async (imageUrl) => {
   let tempFilePath = null;
 
   try {
-    console.log('Downloading image for OCR:', imageUrl);
+    console.log('🔍 Starting Result OCR extraction for:', imageUrl);
+
+    // Ensure temp directory exists
+    const tempDir = path.join(__dirname, '../../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
 
     // Create unique temp file
     const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    tempFilePath = path.join(
-      __dirname,
-      '../../temp',
-      `ocr-${uniqueSuffix}.jpg`
-    );
+    tempFilePath = path.join(tempDir, `result-${uniqueSuffix}.jpg`);
 
     // Download image
     await downloadImage(imageUrl, tempFilePath);
-    console.log('Image saved to:', tempFilePath);
+    console.log('📥 Image saved to:', tempFilePath);
+
+    // Verify file exists
+    if (!fs.existsSync(tempFilePath)) {
+      throw new Error('Downloaded file does not exist');
+    }
 
     // Run OCR on local file
-    console.log('Running OCR...');
+    console.log('🔍 Running OCR...');
     const {
       data: { text },
     } = await Tesseract.recognize(tempFilePath, 'eng', {
       logger: (m) => console.log(m),
     });
 
-    console.log('OCR Text:', text);
+    console.log('📄 OCR Text:', text);
 
     const extractedData = parseStudentInfoFromResult(text);
 
@@ -181,7 +233,7 @@ export const extractResultDataUtil = async (imageUrl) => {
 
     return extractedData;
   } catch (error) {
-    console.error('OCR Extraction Error:', error);
+    console.error('❌ Result OCR Extraction Error:', error);
     throw new BadRequestError(
       'Failed to extract data from Result. Please ensure the image is clear and try again.'
     );
@@ -190,19 +242,20 @@ export const extractResultDataUtil = async (imageUrl) => {
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         fs.unlinkSync(tempFilePath);
-        console.log('Cleaned up:', tempFilePath);
+        console.log('🧹 Cleaned up:', tempFilePath);
       } catch (err) {
-        console.warn('Failed to delete temp file:', err.message);
+        console.warn('⚠️ Failed to delete temp file:', err.message);
       }
     }
   }
 };
 
 /**
- * Parse student information from OCR text
+ * Parse student information from Result OCR text
  * @param {string} text - Raw OCR text
  * @returns {Object} Parsed student data
  */
+// Similarly update parseStudentInfoFromResult
 const parseStudentInfoFromResult = (text) => {
   const lines = text
     .split('\n')
@@ -216,45 +269,45 @@ const parseStudentInfoFromResult = (text) => {
     level: null,
   };
 
-  // Regular expressions for matching patterns
-  // Matches Matric. No.: 12345678  (8 digits after "Matric. No.:")
-  const idRegex = /Matric\.?\s*No\.?:\s*(\d{8})/i;
+  // Handle variations: "Matric No:", "Matric. No:", "Matrlc No:", etc.
+  const idRegex =
+    /(?:Matric|Matrlc|Matr[il]c)\.?\s*(?:No|N0)\.?[:\s]*([0-9]{8})/i;
 
-  // Matches Level: 100L
-  const levelRegex = /Level[:\s]*(\d{3}L)/i;
+  const levelRegex = /Level[:\s]*([0-9]{3}L?)/i;
+  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i;
+  const programmeRegex = /Programme[:\s]*([A-Za-z&\s]+?)(?:\s{2,}|$)/i;
 
-  // Matches Name: John Doe
-  const nameRegex = /Name[:\s]*([A-Z][a-z]+(?: [A-Z][a-z]+)+)/i;
-
-  // Matches Programme: Computer Science
-const programmeRegex = /Programme[:\s]*([A-Za-z&\s]+)/i;
-
-  // Extract matric number
+  // Extract data
   for (const line of lines) {
     const idMatch = line.match(idRegex);
     if (idMatch && !data.id) {
       data.id = idMatch[1];
+      console.log('✅ Matched Matric No:', idMatch[1]);
     }
 
-    // Extract level
     const levelMatch = line.match(levelRegex);
     if (levelMatch && !data.level) {
-      data.level = levelMatch[1].toUpperCase();
+      let level = levelMatch[1].toUpperCase();
+      if (!level.endsWith('L')) {
+        level += 'L';
+      }
+      data.level = level;
+      console.log('✅ Matched Level:', level);
     }
 
-    // Extract name
     const nameMatch = line.match(nameRegex);
     if (nameMatch && !data.name) {
       data.name = nameMatch[1].trim();
+      console.log('✅ Matched Name:', nameMatch[1]);
     }
 
-    // Extract department
     const programmeMatch = line.match(programmeRegex);
     if (programmeMatch && !data.programme) {
       data.programme = programmeMatch[1].trim();
+      console.log('✅ Matched Programme:', programmeMatch[1]);
     }
   }
 
-  console.log('✅ Parsed Data From Result:', data);
+  console.log('✅ Final Parsed Data From Result:', data);
   return data;
 };

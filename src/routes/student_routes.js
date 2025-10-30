@@ -7,6 +7,7 @@ import {
   uploadCourseFormAndExtractData,
   uploadResultAndExtractData,
   confirmActivation,
+  getLiveClasses,
 } from '../controllers/student_controller.js';
 import authMiddleware from '../middleware/auth_middleware.js';
 
@@ -76,5 +77,6 @@ router.post(
   courseFormUpload.single('courseForm'),
   uploadCourseFormAndExtractData
 );
+router.get('/get-live-classes', getLiveClasses);
 
 export default router;

@@ -45,3 +45,49 @@ export const createSession = async (req, res, next) => {
     next(error);
   }
 };
+
+export const endSession = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Find the session
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      return formatResponseUtil(
+        res,
+        StatusCodes.NOT_FOUND,
+        null,
+        'Session not found'
+      );
+    }
+
+    // Check if already ended
+    if (session.status === 'ended') {
+      return formatResponseUtil(
+        res,
+        StatusCodes.BAD_REQUEST,
+        null,
+        'Session has already ended'
+      );
+    }
+
+    // Update the status and end time
+    session.status = 'ended';
+    await session.save();
+
+    return formatResponseUtil(
+      res,
+      StatusCodes.OK,
+      {
+        id: session._id,
+        courseId: session.courseId,
+        lecturerId: session.lecturerId,
+        status: session.status,
+        endTime: session.endTime,
+      },
+      'Session ended successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};

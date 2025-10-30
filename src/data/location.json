@@ -2,10 +2,10 @@
   {
     "name": "ROOM A2",
     "corners": [
-      { "latitude": 6.662634, "longitude": 3.171158 },
-      { "latitude": 6.662631, "longitude": 3.171201 },
-      { "latitude": 6.662658, "longitude": 3.171177 },
-      { "latitude": 6.662697, "longitude": 3.171117 }
+      { "latitude": 7.222732, "longitude": 3.450205 },
+      { "latitude": 7.222528, "longitude": 3.449306 },
+      { "latitude": 7.22277, "longitude": 3.450217 },
+      { "latitude": 7.222763, "longitude": 3.450208 }
     ]
   }
 ]
