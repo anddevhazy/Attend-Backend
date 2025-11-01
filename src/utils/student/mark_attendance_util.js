@@ -73,62 +73,42 @@ export const checkGeofenceUtil = (latitude, longitude, corners) => {
 };
 
 export const handleDeviceValidationUtil = async (matricNumber, deviceId) => {
-  // Validate inputs
-  if (
-    !matricNumber ||
-    typeof matricNumber !== 'string' ||
-    !deviceId ||
-    typeof deviceId !== 'string'
-  ) {
-    console.error(
-      `Invalid input: matricNumber=${matricNumber}, deviceId=${deviceId}`
-    );
-    throw new BadRequestError('Invalid matricNumber or deviceId');
+  if (!matricNumber || typeof matricNumber !== 'string') {
+    throw new BadRequestError('Invalid matricNumber');
   }
 
   try {
-    // Check if student exists
     const user = await Student.findOne({ matricNumber })
-      .select('_id deviceId selfie')
+      .select('_id deviceId selfie name')
       .lean();
 
     if (!user) {
-      console.error(`User not found for matricNumber: ${matricNumber}`);
       throw new BadRequestError('Student not found');
     }
 
-    // Check if this student already has the device registered
-    if (user.deviceId === deviceId) {
-      console.log(`Device ${deviceId} already registered to ${matricNumber}`);
-      return { success: true, alreadyRegistered: true };
+    // ✅ Step 1: Always check if the device belongs to someone else
+    if (deviceId) {
+      const deviceOwner = await Student.findOne({
+        deviceId,
+        matricNumber: { $ne: matricNumber },
+      }).select('matricNumber name selfie');
+
+      if (deviceOwner) {
+        return {
+          success: false,
+          message:
+            'This device is already tied to another student account, request override',
+          conflictInfo: {
+            matricNumber: deviceOwner.matricNumber,
+            name: deviceOwner.name,
+            selfie: deviceOwner.selfie,
+          },
+        };
+      }
     }
 
-    // Check if device is owned by another student
-    const deviceOwner = await Student.findOne({
-      deviceId,
-      matricNumber: { $ne: matricNumber },
-    }).select('matricNumber name selfie');
-
-    if (deviceOwner) {
-      console.log(
-        `Device conflict: deviceId=${deviceId} owned by ${deviceOwner.matricNumber}`
-      );
-      return {
-        success: false,
-        message: 'This device is already tied to another student account',
-        conflictInfo: {
-          matricNumber: deviceOwner.matricNumber,
-          name: deviceOwner.name,
-          selfie: deviceOwner.selfie,
-        },
-      };
-    }
-
-    // Device is not registered - student needs to upload selfie
+    // ✅ Step 2: Handle case where student has no registered device
     if (!user.deviceId) {
-      console.log(
-        `Device ${deviceId} available - requires selfie upload for ${matricNumber}`
-      );
       return {
         success: false,
         requiresSelfie: true,
@@ -136,17 +116,22 @@ export const handleDeviceValidationUtil = async (matricNumber, deviceId) => {
       };
     }
 
-    // Student has a different device registered
+    // ✅ Step 3: If registered device matches
+    if (user.deviceId === deviceId) {
+      return { success: true, alreadyRegistered: true };
+    }
+
+    // ✅ Step 4: Device mismatch
     return {
       success: false,
       message: 'You are using a different device than your registered one',
       requiresDeviceChange: true,
     };
   } catch (error) {
-    console.error(`Device validation error: ${error.message}`);
     throw new BadRequestError(`Error validating device: ${error.message}`);
   }
 };
+
 export const fetchOriginalOwnerUtil = async (deviceId) => {
   // Validate input
   if (!deviceId || typeof deviceId !== 'string') {
@@ -156,7 +141,7 @@ export const fetchOriginalOwnerUtil = async (deviceId) => {
 
   try {
     const deviceOwner = await Student.findOne({ deviceId })
-      .select('matricNumber name selfie')
+      .select('_id matricNumber name selfie')
       .lean();
 
     if (!deviceOwner) {
@@ -173,6 +158,8 @@ export const fetchOriginalOwnerUtil = async (deviceId) => {
         matricNumber: deviceOwner.matricNumber,
         name: deviceOwner.name,
         selfie: deviceOwner.selfie,
+        deviceId: deviceId,
+        _id: deviceOwner._id,
       },
     };
   } catch (error) {

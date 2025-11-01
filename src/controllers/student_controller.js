@@ -4,8 +4,10 @@ import {
   BadRequestError,
   NotFoundError,
   UnauthenticatedError,
+  InternalServerError,
 } from '../errors/index.js';
 import Student from '../models/student_model.js';
+import OverrideRequest from '../models/override_request_model.js';
 import Session from '../models/attendance_session_model.js';
 // eslint-disable-next-line no-unused-vars
 import Location from '../models/location_model.js';
@@ -17,6 +19,7 @@ import { uploadCourseFormsToCloudinaryUtil } from '../utils/student/cloudinary_u
 import { uploadResultsToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
 import {
   checkGeofenceUtil,
+  fetchOriginalOwnerUtil,
   handleDeviceValidationUtil,
 } from '../utils/student/mark_attendance_util.js';
 import { uploadSelfieToCloudinaryUtil } from '../utils/student/cloudinary_upload_util.js';
@@ -356,7 +359,6 @@ export const markAttendance = async (req, res, next) => {
     const student = await Student.findById(userId).select(
       'matricNumber deviceId selfie'
     );
-
     if (!student) {
       throw new NotFoundError('Student not found');
     }
@@ -530,6 +532,80 @@ export const uploadSelfieAndRegisterDevice = async (req, res, next) => {
     );
   } catch (error) {
     console.error('Selfie Upload Error:', error);
+    next(error);
+  }
+};
+
+export const requestOverride = async (req, res, next) => {
+  try {
+    const { sessionId, selfie, deviceId } = req.body;
+
+    validateRequiredFieldsUtil(['sessionId', 'selfie', 'deviceId'], req.body);
+
+    const session = await Session.findById(sessionId)
+      .select('endTime lecturerId')
+      .lean();
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    if (new Date() > session.endTime) {
+      throw new BadRequestError('Session has ended, cannot request override');
+    }
+
+    const userId = req.user.id;
+    const student = await Student.findById(userId).select('matricNumber ');
+    if (!student) {
+      throw new NotFoundError('Student not found');
+    }
+
+    const matricNumber = student.matricNumber;
+    const existingRequest = await OverrideRequest.findOne({
+      sessionId,
+      status: 'pending',
+    }).lean();
+
+    if (existingRequest) {
+      throw new BadRequestError(
+        'Override request already submitted for this session'
+      );
+    }
+
+    const originalOwner = await fetchOriginalOwnerUtil(deviceId);
+    if (!originalOwner.success) {
+      throw new InternalServerError('Error fetching original device owner');
+    }
+
+    const originalOwnerId = originalOwner.conflictInfo?._id;
+
+    if (!originalOwnerId) {
+      throw new BadRequestError(
+        'Could not determine the original device owner. Cannot process override request.'
+      );
+    }
+
+    const overrideRequest = await OverrideRequest.create({
+      studentId: student._id,
+      sessionId,
+      matricNumber,
+      selfie,
+      originalOwnerId: originalOwnerId,
+      lecturerId: session.lecturerId,
+      deviceIdUsed: deviceId,
+    });
+
+    const realOwnerInfo = originalOwner.conflictInfo;
+
+    return formatResponseUtil(
+      res,
+      StatusCodes.CREATED,
+      {
+        overrideRequestId: overrideRequest._id,
+        realOwner: realOwnerInfo,
+      },
+      'Override request submitted successfully. Waiting for lecturer approval.'
+    );
+  } catch (error) {
     next(error);
   }
 };

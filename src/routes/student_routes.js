@@ -10,6 +10,7 @@ import {
   getLiveClasses,
   uploadSelfieAndRegisterDevice,
   markAttendance,
+  requestOverride,
 } from '../controllers/student_controller.js';
 import authMiddleware from '../middleware/auth_middleware.js';
 
@@ -115,5 +116,6 @@ router.post(
   selfieUpload.single('selfie'),
   uploadSelfieAndRegisterDevice
 );
+router.post('/request-override', requestOverride);
 
 export default router;

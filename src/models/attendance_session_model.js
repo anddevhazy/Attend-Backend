@@ -34,7 +34,7 @@ const SessionSchema = new mongoose.Schema(
         },
         selfie: {
           type: String,
-          required: [true, 'Selfie URL is required'],
+          required: false,
         },
         timestamp: {
           type: Date,
