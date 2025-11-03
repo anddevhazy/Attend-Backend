@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --legacy-watch src/index.js",
+    "start": "node src/index.js",
     "seed": "node -r dotenv/config seed.js",
     "lint": "eslint ."
   },
