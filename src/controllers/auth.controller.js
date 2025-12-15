@@ -9,6 +9,15 @@ import validateRequiredFieldsUtil from '../utils/global/validate_required_fields
 import Lecturer from '../models/lecturer_model.js';
 import Student from '../models/student_model.js';
 import sendEmailVerificationLink from '../utils/auth/send_email_verification_link_util.js';
+import RefreshToken from '../models/refresh_token_model.js';
+import {
+  createAccessToken,
+  createRefreshToken,
+  hashToken,
+  newJti,
+  getRefreshExpiryDate,
+} from '../utils/auth/tokens.js';
+import jwt from 'jsonwebtoken';
 
 export const lecturerSignUp = async (req, res, next) => {
   try {
@@ -48,7 +57,7 @@ export const lecturerSignUp = async (req, res, next) => {
     await lecturer.save();
 
     // Send verification email
-    const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-email?token=${emailVerificationToken}`;
+    const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-lecturer-email?token=${emailVerificationToken}`;
     await sendEmailVerificationLink({
       to: lecturer.email,
       subject: 'Verify Your Email',
@@ -221,7 +230,7 @@ export const verifyStudentEmail = async (req, res, next) => {
 
 export const lecturerLogin = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceId } = req.body;
 
     // Validate required fields
     validateRequiredFieldsUtil(['email', 'password'], req.body);
@@ -243,25 +252,42 @@ export const lecturerLogin = async (req, res, next) => {
       throw new UnauthenticatedError('Invalid  Password');
     }
 
-    // Generate JWT token for session
-    const token = lecturer.generateLoginToken();
+    const accessToken = createAccessToken({
+      id: lecturer._id,
+      email: lecturer.email,
+      role: lecturer.role,
+      userType: 'lecturer',
+    });
 
-    // Return success response with token
+    const jti = newJti();
+    const refreshToken = createRefreshToken({
+      id: lecturer._id,
+      userType: 'lecturer',
+      deviceId: deviceId || null,
+      jti,
+    });
+    await RefreshToken.create({
+      userId: lecturer._id,
+      userType: 'lecturer',
+      deviceId: deviceId || null,
+      jti,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: getRefreshExpiryDate(),
+    });
+
     return formatResponseUtil(
       res,
       StatusCodes.OK,
       {
-        token,
-        lecturer: {
+        accessToken,
+        refreshToken,
+        student: {
           id: lecturer._id,
           email: lecturer.email,
-          name: lecturer.name,
           role: lecturer.role,
-          department: lecturer.department,
-          college: lecturer.college,
         },
       },
-      'Lecturer Login successful'
+      'Login successful'
     );
   } catch (error) {
     console.error('LECTURER Login Error:', error);
@@ -271,13 +297,14 @@ export const lecturerLogin = async (req, res, next) => {
 
 export const studentLogin = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceId } = req.body;
 
     // Validate required fields
     validateRequiredFieldsUtil(['email', 'password'], req.body);
 
     // Find student by email
     const student = await Student.findOne({ email, role: 'student' });
+
     if (!student) {
       throw new UnauthenticatedError(" Student with this email doesn't exist");
     }
@@ -293,25 +320,142 @@ export const studentLogin = async (req, res, next) => {
       throw new UnauthenticatedError('Invalid Password');
     }
 
-    // Generate JWT token for session
-    const token = student.generateLoginToken();
+    const accessToken = createAccessToken({
+      id: student._id,
+      email: student.email,
+      role: student.role,
+      userType: 'student',
+    });
 
-    // Return success response with token
+    const jti = newJti();
+    const refreshToken = createRefreshToken({
+      id: student._id,
+      userType: 'student',
+      deviceId: deviceId || null,
+      jti,
+    });
+    await RefreshToken.create({
+      userId: student._id,
+      userType: 'student',
+      deviceId: deviceId || null,
+      jti,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: getRefreshExpiryDate(),
+    });
+
     return formatResponseUtil(
       res,
       StatusCodes.OK,
       {
-        token,
-        student: {
-          id: student._id,
-          email: student.email,
-          role: student.role,
-        },
+        accessToken,
+        refreshToken,
+        student: { id: student._id, email: student.email, role: student.role },
       },
       'Login successful'
     );
   } catch (error) {
     console.error('STUDENT Login Error:', error);
     next(error);
+  }
+};
+
+export const refreshAccessToken = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    validateRequiredFieldsUtil(['refreshToken'], req.body);
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch {
+      throw new UnauthenticatedError('Invalid or expired refresh token');
+    }
+
+    if (decoded.type !== 'refresh') {
+      throw new UnauthenticatedError('Invalid token type');
+    }
+
+    const stored = await RefreshToken.findOne({
+      jti: decoded.jti,
+      userId: decoded.id,
+      userType: decoded.userType,
+      revokedAt: null,
+    });
+
+    if (!stored) throw new UnauthenticatedError('Refresh token revoked');
+
+    if (stored.tokenHash !== hashToken(refreshToken)) {
+      // token reuse / tampering => revoke this session
+      stored.revokedAt = new Date();
+      await stored.save();
+      throw new UnauthenticatedError('Refresh token invalid');
+    }
+
+    // ROTATE refresh token
+    stored.revokedAt = new Date();
+    await stored.save();
+
+    // load user for email/role
+    const user =
+      decoded.userType === 'student'
+        ? await Student.findById(decoded.id)
+        : await Lecturer.findById(decoded.id);
+
+    if (!user) throw new UnauthenticatedError('User not found');
+
+    const newAccessToken = createAccessToken({
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      userType: decoded.userType,
+    });
+
+    const newJ = newJti();
+    const newRefreshToken = createRefreshToken({
+      id: user._id,
+      userType: decoded.userType,
+      deviceId: decoded.deviceId || null,
+      jti: newJ,
+    });
+
+    await RefreshToken.create({
+      userId: user._id,
+      userType: decoded.userType,
+      deviceId: decoded.deviceId || null,
+      jti: newJ,
+      tokenHash: hashToken(newRefreshToken),
+      expiresAt: getRefreshExpiryDate(),
+    });
+
+    return formatResponseUtil(res, StatusCodes.OK, {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const logout = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    validateRequiredFieldsUtil(['refreshToken'], req.body);
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch {
+      // don’t reveal details
+      return formatResponseUtil(res, StatusCodes.OK, null, 'Logged out');
+    }
+
+    await RefreshToken.updateOne(
+      { jti: decoded.jti, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
+
+    return formatResponseUtil(res, StatusCodes.OK, null, 'Logged out');
+  } catch (err) {
+    next(err);
   }
 };

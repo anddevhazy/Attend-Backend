@@ -11,7 +11,7 @@ const StudentSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['student'],
-      default: 'studnet',
+      default: 'student',
       required: [true, 'Role is required'],
     },
     email: {

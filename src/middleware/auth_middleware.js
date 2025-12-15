@@ -11,9 +11,19 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Attach decoded user info to the request
-    req.user = { id: decoded.id, email: decoded.email, role: decoded.role };
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+    if (decoded.type !== 'access') {
+      throw new UnauthenticatedError('Invalid token type');
+    }
+
+    req.user = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+      userType: decoded.userType,
+    };
+
     next();
     // eslint-disable-next-line no-unused-vars
   } catch (err) {
