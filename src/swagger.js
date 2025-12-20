@@ -17,6 +17,10 @@ const options = {
         url: 'https://attend-api-3xom.onrender.com',
         description: 'Production server',
       },
+      {
+        url: 'https://attend-api-staging.onrender.com',
+        description: 'Staging server',
+      },
     ],
     components: {
       securitySchemes: {

@@ -18,7 +18,7 @@ import authMiddleware from '../middleware/auth_middleware.js';
 const router = express.Router();
 router.use(authMiddleware);
 
-// Multer config (same as before)
+// Multer config
 const fileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   if (allowedMimes.includes(file.mimetype)) cb(null, true);
