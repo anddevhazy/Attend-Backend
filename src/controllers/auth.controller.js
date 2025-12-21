@@ -136,50 +136,60 @@ export const studentSignUp = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    // Validate required fields
     validateRequiredFieldsUtil(['email', 'password'], req.body);
 
+    // Create student account
     const student = await Student.create({
       email,
       password,
       role: 'student',
     });
 
+    // Generate email verification token
     const emailVerificationToken = student.generateEmailVerificationToken();
-
-    // Send verification email
     const verificationLink = `${process.env.APP_URL}/api/v1/auth/verify-student-email?token=${emailVerificationToken}`;
-    await sendEmailVerificationLink({
-      to: student.email,
-      subject: 'Verify Your Email',
-      html: `
-        <p>Hello,</p>
-        <p>Welcome to Attend! Please verify your email by clicking the link below:</p>
-        <a href="${verificationLink}" target="_blank" 
-           style="display:inline-block;background:#007bff;color:#fff;
-                  padding:10px 15px;text-decoration:none;border-radius:5px;">
-          Verify Email
-        </a>
-        <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p>${verificationLink}</p>
-        <hr />
-        <p style="font-size:0.9em;color:#777;">
-          If you didn't request this verification, please ignore this email or do not click the link.
-        </p>
-      `,
-    });
 
-    console.log(
-      `✅ Controller has created ${email}'s student document and sent Verification email to them`
-    );
-    return formatResponseUtil(
-      res,
-      StatusCodes.CREATED,
-      {
+    // Attempt to send verification email, but don't fail signup if email fails
+    let emailSent = true;
+    try {
+      await sendEmailVerificationLink({
+        to: student.email,
+        subject: 'Verify Your Email',
+        html: `
+          <p>Hello,</p>
+          <p>Welcome to Attend! Please verify your email by clicking the link below:</p>
+          <a href="${verificationLink}" target="_blank" 
+             style="display:inline-block;background:#007bff;color:#fff;
+                    padding:10px 15px;text-decoration:none;border-radius:5px;">
+            Verify Email
+          </a>
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <p>${verificationLink}</p>
+          <hr />
+          <p style="font-size:0.9em;color:#777;">
+            If you didn't request this verification, please ignore this email.
+          </p>
+        `,
+      });
+      console.log(`✅ Verification email sent to ${email}`);
+    } catch (err) {
+      console.error(`❌ Failed to send verification email to ${email}`, err);
+      emailSent = false;
+    }
+
+    // Return account info and email status
+    return res.status(201).json({
+      success: true,
+      data: {
         id: student._id,
         email: student.email,
       },
-      'Student account created & Verification Email Sent'
-    );
+      message: emailSent
+        ? 'Account created & verification email sent'
+        : 'Account created, but failed to send verification email. Please contact support or try again.',
+      emailSent,
+    });
   } catch (error) {
     console.error('STUDENT SignUp Error', error);
     next(error);
